@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CorrGen - Correlation Sample Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom scrollbar for table and sidebar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 300px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm shrink-0">
+        <div class="flex items-center gap-2">
+            <div class="bg-blue-600 p-2 rounded-lg">
+                <i data-lucide="table-2" class="w-5 h-5 text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-lg sm:text-xl font-bold text-slate-900 leading-tight">CorrGen</h1>
+                <p class="text-xs text-slate-500 hidden sm:block">Correlated Sample Generator</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button id="btn-regenerate" class="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-slate-700 rounded-md transition-colors text-sm font-medium">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Regenerate</span>
+            </button>
+            <button id="btn-download" class="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors text-sm font-medium shadow-sm">
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Export CSV</span>
+                <span class="sm:hidden">CSV</span>
+            </button>
+            <button id="btn-menu" class="lg:hidden p-2 text-slate-600 hover:bg-gray-100 rounded-md">
+                <i data-lucide="settings-2" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        
+        <!-- Sidebar / Mobile Overlay -->
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-20 hidden lg:hidden"></div>
+        
+        <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 w-80 bg-white border-r border-gray-200 overflow-y-auto p-6 flex flex-col gap-6 z-30 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 shadow-xl lg:shadow-none h-full">
+            
+            <!-- Close button for mobile -->
+            <div class="lg:hidden flex justify-end mb-2">
+                <button id="btn-close-sidebar" class="p-2 text-slate-500 hover:text-slate-800">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <!-- General Settings -->
+            <div class="space-y-4">
+                <div class="flex items-center gap-2 text-slate-800 font-semibold border-b pb-2">
+                    <i data-lucide="sliders" class="w-4 h-4"></i>
+                    <span>Configuration</span>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-medium text-slate-600">Sample Size (N)</label>
+                            <span id="val-samples" class="text-sm font-mono bg-slate-100 px-2 rounded">50</span>
+                        </div>
+                        <input type="range" id="inp-samples" min="5" max="1000" step="5" value="50" class="w-full accent-blue-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between mb-1">
+                            <label class="text-sm font-medium text-slate-600">Correlation (r)</label>
+                            <span id="val-correlation" class="text-sm font-mono bg-green-50 text-green-700 px-2 rounded">0.75</span>
+                        </div>
+                        <input type="range" id="inp-correlation" min="-1" max="1" step="0.01" value="0.75" class="w-full accent-blue-600 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1">
+                            <span>-1.0</span>
+                            <span>0.0</span>
+                            <span>+1.0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Variable X -->
+            <div class="space-y-4">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400">Variable 1 (X)</h3>
+                <div class="grid grid-cols-1 gap-3">
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">Name</label>
+                        <input type="text" id="inp-name-x" value="Variable X" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 block mb-1">Mean</label>
+                            <input type="number" id="inp-mean-x" value="100" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 block mb-1">Std Dev</label>
+                            <input type="number" id="inp-std-x" value="15" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Variable Y -->
+            <div class="space-y-4">
+                <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400">Variable 2 (Y)</h3>
+                <div class="grid grid-cols-1 gap-3">
+                    <div>
+                        <label class="text-xs font-medium text-slate-500 block mb-1">Name</label>
+                        <input type="text" id="inp-name-y" value="Variable Y" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 block mb-1">Mean</label>
+                            <input type="number" id="inp-mean-y" value="50" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-slate-500 block mb-1">Std Dev</label>
+                            <input type="number" id="inp-std-y" value="10" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col h-full overflow-hidden bg-gray-50 w-full">
+            
+            <!-- Stats Bar -->
+            <div class="bg-white border-b px-4 sm:px-6 py-3 flex flex-wrap gap-x-6 gap-y-2 text-sm shadow-sm items-center shrink-0">
+                <div class="flex items-center gap-2 text-slate-500">
+                    <i data-lucide="info" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Actual Stats:</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-500">Correlation (r):</span>
+                    <span id="stat-r" class="font-mono font-bold text-green-600">0.0000</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-500">Mean X:</span>
+                    <span id="stat-mean-x" class="font-mono text-slate-700">0.00</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-500">Mean Y:</span>
+                    <span id="stat-mean-y" class="font-mono text-slate-700">0.00</span>
+                </div>
+            </div>
+
+            <div class="flex-1 p-4 sm:p-6 overflow-y-auto lg:overflow-hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:h-full">
+                    
+                    <!-- Chart Area -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-col h-[350px] lg:h-full min-h-[300px]">
+                        <div class="flex justify-between items-center mb-4 shrink-0">
+                            <h3 class="font-semibold text-slate-700 flex items-center gap-2">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-blue-500"></i>
+                                Visual Distribution
+                            </h3>
+                        </div>
+                        <div id="chart-wrapper" class="flex-1 relative bg-slate-50 rounded-lg border border-slate-100 w-full overflow-hidden">
+                            <svg id="scatter-plot" class="w-full h-full overflow-visible"></svg>
+                        </div>
+                    </div>
+
+                    <!-- Table Area -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col h-[400px] lg:h-full overflow-hidden">
+                        <div class="flex justify-between items-center p-4 border-b shrink-0">
+                            <h3 class="font-semibold text-slate-700 flex items-center gap-2">
+                                <i data-lucide="table" class="w-4 h-4 text-blue-500"></i>
+                                Sample Data
+                            </h3>
+                            <span id="row-count" class="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-full">0 rows</span>
+                        </div>
+                        <div class="flex-1 overflow-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th class="px-4 py-3 font-semibold text-slate-600 border-b w-16">ID</th>
+                                        <th id="th-x" class="px-4 py-3 font-semibold text-slate-600 border-b">Variable X</th>
+                                        <th id="th-y" class="px-4 py-3 font-semibold text-slate-600 border-b">Variable Y</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="data-table-body" class="divide-y divide-gray-100 bg-white">
+                                    <!-- Rows injected via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Math Utilities ---
+
+        // Box-Muller transform for standard normal distribution
+        function generateGaussian() {
+            let u = 0, v = 0;
+            while (u === 0) u = Math.random();
+            while (v === 0) v = Math.random();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        }
+
+        function calculateMean(arr) {
+            return arr.reduce((a, b) => a + b, 0) / arr.length;
+        }
+
+        function calculateCorrelation(x, y) {
+            const n = x.length;
+            if (n !== y.length || n === 0) return 0;
+
+            const meanX = calculateMean(x);
+            const meanY = calculateMean(y);
+
+            let num = 0;
+            let denX = 0;
+            let denY = 0;
+
+            for (let i = 0; i < n; i++) {
+                const dx = x[i] - meanX;
+                const dy = y[i] - meanY;
+                num += dx * dy;
+                denX += dx * dx;
+                denY += dy * dy;
+            }
+
+            if (denX === 0 || denY === 0) return 0;
+            return num / Math.sqrt(denX * denY);
+        }
+
+        // --- Core Algorithm ---
+        function generateCorrelatedData(n, targetCorrelation, meanX, stdX, meanY, stdY) {
+            if (n < 2) return [];
+
+            // 1. Generate raw Gaussian data
+            let xRaw = Array.from({ length: n }, () => generateGaussian());
+            let yRaw = Array.from({ length: n }, () => generateGaussian());
+
+            // 2. Center and Normalize vectors
+            const centerAndScale = (arr) => {
+                const mean = calculateMean(arr);
+                const centered = arr.map(v => v - mean);
+                const magnitude = Math.sqrt(centered.reduce((sum, val) => sum + val * val, 0));
+                return centered.map(v => v / magnitude);
+            };
+
+            let xState = centerAndScale(xRaw);
+            let yState = centerAndScale(yRaw);
+
+            // 3. Gram-Schmidt Orthogonalization
+            // Project y onto x
+            const dotProduct = xState.reduce((sum, v, i) => sum + v * yState[i], 0);
+            let yOrthogonal = yState.map((yVal, i) => yVal - dotProduct * xState[i]);
+            
+            // Renormalize orthogonal vector
+            const yOrthMag = Math.sqrt(yOrthogonal.reduce((sum, val) => sum + val * val, 0));
+            yOrthogonal = yOrthogonal.map(v => v / yOrthMag);
+
+            // 4. Mix to target correlation
+            const r = Math.max(-1, Math.min(1, targetCorrelation));
+            const coeffX = r;
+            const coeffOrtho = Math.sqrt(1 - r * r);
+
+            let xFinalNorm = xState;
+            let yFinalNorm = xState.map((xVal, i) => coeffX * xVal + coeffOrtho * yOrthogonal[i]);
+
+            // 5. Scale to target Mean/SD
+            // Current vector magnitude is 1. Current variance is 1/(n-1).
+            // Desired variance is std^2.
+            // Scale factor = std * sqrt(n-1)
+            const scaleFactorX = stdX * Math.sqrt(n - 1);
+            const scaleFactorY = stdY * Math.sqrt(n - 1);
+
+            const finalData = [];
+            for (let i = 0; i < n; i++) {
+                finalData.push({
+                    id: i + 1,
+                    x: xFinalNorm[i] * scaleFactorX + meanX,
+                    y: yFinalNorm[i] * scaleFactorY + meanY
+                });
+            }
+
+            return finalData;
+        }
+
+        // --- UI Logic ---
+
+        // State
+        let appData = [];
+        
+        // Elements
+        const els = {
+            inpSamples: document.getElementById('inp-samples'),
+            valSamples: document.getElementById('val-samples'),
+            inpCorrelation: document.getElementById('inp-correlation'),
+            valCorrelation: document.getElementById('val-correlation'),
+            inpNameX: document.getElementById('inp-name-x'),
+            inpMeanX: document.getElementById('inp-mean-x'),
+            inpStdX: document.getElementById('inp-std-x'),
+            inpNameY: document.getElementById('inp-name-y'),
+            inpMeanY: document.getElementById('inp-mean-y'),
+            inpStdY: document.getElementById('inp-std-y'),
+            
+            statR: document.getElementById('stat-r'),
+            statMeanX: document.getElementById('stat-mean-x'),
+            statMeanY: document.getElementById('stat-mean-y'),
+            
+            thX: document.getElementById('th-x'),
+            thY: document.getElementById('th-y'),
+            rowCount: document.getElementById('row-count'),
+            tbody: document.getElementById('data-table-body'),
+            
+            svg: document.getElementById('scatter-plot'),
+            chartWrapper: document.getElementById('chart-wrapper'),
+            
+            btnRegenerate: document.getElementById('btn-regenerate'),
+            btnDownload: document.getElementById('btn-download'),
+            
+            sidebar: document.getElementById('sidebar'),
+            overlay: document.getElementById('sidebar-overlay'),
+            btnMenu: document.getElementById('btn-menu'),
+            btnCloseSidebar: document.getElementById('btn-close-sidebar')
+        };
+
+        function updateUI() {
+            const config = getConfig();
+            
+            // Update Labels
+            els.valSamples.textContent = config.n;
+            els.valCorrelation.textContent = config.r;
+            els.valCorrelation.className = `text-sm font-mono px-2 rounded ${config.r > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`;
+            
+            els.thX.textContent = config.nameX;
+            els.thY.textContent = config.nameY;
+            els.rowCount.textContent = `${appData.length} rows`;
+
+            // Calculate Stats
+            if (appData.length > 0) {
+                const xs = appData.map(d => d.x);
+                const ys = appData.map(d => d.y);
+                const r = calculateCorrelation(xs, ys);
+                const mx = calculateMean(xs);
+                const my = calculateMean(ys);
+
+                els.statR.textContent = r.toFixed(4);
+                els.statR.className = `font-mono font-bold ${Math.abs(r - config.r) < 0.01 ? 'text-green-600' : 'text-amber-600'}`;
+                els.statMeanX.textContent = mx.toFixed(2);
+                els.statMeanY.textContent = my.toFixed(2);
+            }
+        }
+
+        function getConfig() {
+            return {
+                n: parseInt(els.inpSamples.value) || 50,
+                r: parseFloat(els.inpCorrelation.value) || 0,
+                nameX: els.inpNameX.value || 'Variable X',
+                meanX: parseFloat(els.inpMeanX.value) || 0,
+                stdX: parseFloat(els.inpStdX.value) || 1,
+                nameY: els.inpNameY.value || 'Variable Y',
+                meanY: parseFloat(els.inpMeanY.value) || 0,
+                stdY: parseFloat(els.inpStdY.value) || 1
+            };
+        }
+
+        function renderTable() {
+            els.tbody.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+            
+            // Limit rendering for performance if huge dataset (not strictly necessary for <1000)
+            appData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-blue-50/50 transition-colors";
+                tr.innerHTML = `
+                    <td class="px-4 py-2 text-slate-500 font-mono text-xs border-b border-gray-50">${row.id}</td>
+                    <td class="px-4 py-2 text-slate-800 font-mono border-b border-gray-50">${row.x.toFixed(4)}</td>
+                    <td class="px-4 py-2 text-slate-800 font-mono border-b border-gray-50">${row.y.toFixed(4)}</td>
+                `;
+                fragment.appendChild(tr);
+            });
+            els.tbody.appendChild(fragment);
+        }
+
+        function renderChart() {
+            const rect = els.chartWrapper.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+            const padding = 40;
+            const graphW = width - padding * 2;
+            const graphH = height - padding * 2;
+
+            els.svg.innerHTML = ''; // Clear
+            // Use setAttributeNS for SVG creation in some strict environments, but simple innerHTML works for basic cleaning
+            
+            if (appData.length === 0) return;
+
+            const xVals = appData.map(d => d.x);
+            const yVals = appData.map(d => d.y);
+            
+            const minX = Math.min(...xVals);
+            const maxX = Math.max(...xVals);
+            const minY = Math.min(...yVals);
+            const maxY = Math.max(...yVals);
+
+            const rangeX = (maxX - minX) || 1;
+            const rangeY = (maxY - minY) || 1;
+            
+            const domainX = [minX - rangeX * 0.1, maxX + rangeX * 0.1];
+            const domainY = [minY - rangeY * 0.1, maxY + rangeY * 0.1];
+
+            const scaleX = v => padding + ((v - domainX[0]) / (domainX[1] - domainX[0])) * graphW;
+            const scaleY = v => (height - padding) - ((v - domainY[0]) / (domainY[1] - domainY[0])) * graphH;
+
+            // Draw Grid
+            const gridGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            gridGroup.setAttribute("stroke", "#e5e7eb");
+            gridGroup.setAttribute("stroke-dasharray", "4 4");
+            
+            // Box
+            const rectBox = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rectBox.setAttribute("x", padding);
+            rectBox.setAttribute("y", padding);
+            rectBox.setAttribute("width", graphW);
+            rectBox.setAttribute("height", graphH);
+            rectBox.setAttribute("fill", "none");
+            rectBox.setAttribute("stroke", "#e2e8f0");
+            gridGroup.appendChild(rectBox);
+            els.svg.appendChild(gridGroup);
+
+            // Zero Lines
+            if (domainX[0] < 0 && domainX[1] > 0) {
+                const x0 = scaleX(0);
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", x0);
+                line.setAttribute("y1", padding);
+                line.setAttribute("x2", x0);
+                line.setAttribute("y2", height - padding);
+                line.setAttribute("stroke", "#cbd5e1");
+                line.setAttribute("stroke-width", "2");
+                els.svg.appendChild(line);
+            }
+            if (domainY[0] < 0 && domainY[1] > 0) {
+                const y0 = scaleY(0);
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", padding);
+                line.setAttribute("y1", y0);
+                line.setAttribute("x2", width - padding);
+                line.setAttribute("y2", y0);
+                line.setAttribute("stroke", "#cbd5e1");
+                line.setAttribute("stroke-width", "2");
+                els.svg.appendChild(line);
+            }
+
+            // Points
+            appData.forEach(p => {
+                const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circle.setAttribute("cx", scaleX(p.x));
+                circle.setAttribute("cy", scaleY(p.y));
+                circle.setAttribute("r", 4);
+                circle.setAttribute("class", "fill-blue-500/60 hover:fill-blue-600 transition-colors cursor-crosshair");
+                
+                const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+                title.textContent = `X: ${p.x.toFixed(2)}, Y: ${p.y.toFixed(2)}`;
+                circle.appendChild(title);
+                
+                els.svg.appendChild(circle);
+            });
+
+            // Labels
+            const labelX = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            labelX.setAttribute("x", width/2);
+            labelX.setAttribute("y", height - 10);
+            labelX.setAttribute("text-anchor", "middle");
+            labelX.setAttribute("class", "text-xs fill-gray-500 font-medium");
+            labelX.textContent = els.inpNameX.value;
+            els.svg.appendChild(labelX);
+
+            const labelY = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            labelY.setAttribute("x", 15);
+            labelY.setAttribute("y", height/2);
+            labelY.setAttribute("text-anchor", "middle");
+            labelY.setAttribute("transform", `rotate(-90, 15, ${height/2})`);
+            labelY.setAttribute("class", "text-xs fill-gray-500 font-medium");
+            labelY.textContent = els.inpNameY.value;
+            els.svg.appendChild(labelY);
+        }
+
+        function generate() {
+            const c = getConfig();
+            appData = generateCorrelatedData(c.n, c.r, c.meanX, c.stdX, c.meanY, c.stdY);
+            updateUI();
+            renderTable();
+            renderChart();
+        }
+
+        function downloadCSV() {
+            if (appData.length === 0) return;
+            const c = getConfig();
+            const csvContent = "data:text/csv;charset=utf-8," 
+                + "ID," + c.nameX + "," + c.nameY + "\n"
+                + appData.map(row => `${row.id},${row.x.toFixed(4)},${row.y.toFixed(4)}`).join("\n");
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `correlated_samples_r${c.r}_n${c.n}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Event Listeners
+        const inputs = [
+            els.inpSamples, els.inpCorrelation, 
+            els.inpNameX, els.inpMeanX, els.inpStdX,
+            els.inpNameY, els.inpMeanY, els.inpStdY
+        ];
+
+        inputs.forEach(inp => {
+            inp.addEventListener('input', () => {
+                updateUI(); // Just update numbers/labels while dragging
+            });
+            inp.addEventListener('change', generate); // Regenerate data on release/commit
+        });
+
+        els.btnRegenerate.addEventListener('click', generate);
+        els.btnDownload.addEventListener('click', downloadCSV);
+        
+        // Resize chart on window resize
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(renderChart, 100);
+        });
+
+        // Mobile Menu
+        function toggleSidebar() {
+            els.sidebar.classList.toggle('-translate-x-full');
+            els.overlay.classList.toggle('hidden');
+        }
+        els.btnMenu.addEventListener('click', toggleSidebar);
+        els.btnCloseSidebar.addEventListener('click', toggleSidebar);
+        els.overlay.addEventListener('click', toggleSidebar);
+
+        // Init Icons
+        lucide.createIcons();
+
+        // Initial Generation
+        generate();
+
+    </script>
+</body>
+</html>
