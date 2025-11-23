@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StatCalc - Reverse Correlation Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom scrollbar */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: #f1f5f9; 
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 shadow-sm sticky top-0 z-20">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <div class="bg-indigo-600 p-2 rounded-lg">
+                    <i data-lucide="calculator" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900 leading-tight">StatCalc</h1>
+                    <p class="text-xs text-slate-500">Reverse Correlation Analyzer</p>
+                </div>
+            </div>
+            <button id="btn-example" class="text-xs font-medium text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-md transition-colors border border-transparent hover:border-indigo-100">
+                Load Example Data
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-6xl mx-auto px-4 md:px-6 py-8 w-full">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+            
+            <!-- Left Column: Input -->
+            <div class="lg:col-span-4 flex flex-col gap-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col h-[500px] lg:h-auto lg:min-h-[600px] sticky top-24">
+                    <div class="flex items-center justify-between mb-3 shrink-0">
+                        <label class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <i data-lucide="clipboard" class="w-4 h-4 text-indigo-500"></i>
+                            Input Data (X, Y)
+                        </label>
+                        <button id="btn-clear" class="text-slate-400 hover:text-red-500 transition-colors p-1" title="Clear Data">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    
+                    <textarea id="input-area" 
+                        class="flex-1 w-full p-3 font-mono text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none placeholder-slate-400"
+                        placeholder="Paste your data here...&#10;Format: X, Y (or tab separated)&#10;Example:&#10;10, 20&#10;15, 25"></textarea>
+                    
+                    <div class="mt-2 text-xs text-slate-400 shrink-0">
+                        Supports CSV, TSV (Excel/Sheets), or space separated values.
+                    </div>
+
+                    <!-- Error Box -->
+                    <div id="error-box" class="hidden mt-3 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-start gap-2 shrink-0">
+                        <i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 shrink-0"></i>
+                        <span id="error-msg">Error message here</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Results -->
+            <div class="lg:col-span-8 space-y-6">
+                
+                <!-- KPI Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    
+                    <!-- Correlation Card -->
+                    <div class="col-span-2 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-xl p-5 text-white shadow-md relative overflow-hidden group">
+                        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                            <i data-lucide="trending-up" class="w-16 h-16"></i>
+                        </div>
+                        <div class="text-indigo-100 text-sm font-medium mb-1">Correlation (r)</div>
+                        <div id="stat-r" class="text-4xl font-bold tracking-tight">—</div>
+                        <div id="stat-r-desc" class="mt-2 text-xs text-indigo-100/80 min-h-[1rem]"></div>
+                    </div>
+
+                    <!-- Covariance -->
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Covariance</div>
+                        <div id="stat-cov" class="text-2xl font-semibold text-slate-800">—</div>
+                        <div class="text-xs text-slate-400 mt-1">Joint variability</div>
+                    </div>
+
+                    <!-- Sample Size -->
+                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Sample Size (N)</div>
+                        <div id="stat-n" class="text-2xl font-semibold text-slate-800">0</div>
+                        <div class="text-xs text-slate-400 mt-1">Valid rows</div>
+                    </div>
+                </div>
+
+                <!-- Detailed Stats Table -->
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                        <i data-lucide="calculator" class="w-4 h-4 text-slate-500"></i>
+                        <h3 class="font-semibold text-slate-700">Detailed Statistics</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+                        <!-- X Stats -->
+                        <div class="p-4">
+                            <div class="flex items-center gap-2 mb-4">
+                                <div class="w-2 h-2 rounded-full bg-slate-400"></div>
+                                <span class="font-bold text-slate-600">Variable X</span>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-slate-500">Mean (x̄)</span>
+                                    <span id="stat-mean-x" class="text-sm font-mono font-medium">—</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-slate-500">Std Dev (s)</span>
+                                    <span id="stat-std-x" class="text-sm font-mono font-medium">—</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Y Stats -->
+                        <div class="p-4">
+                            <div class="flex items-center gap-2 mb-4">
+                                <div class="w-2 h-2 rounded-full bg-slate-400"></div>
+                                <span class="font-bold text-slate-600">Variable Y</span>
+                            </div>
+                            <div class="space-y-3">
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-slate-500">Mean (ȳ)</span>
+                                    <span id="stat-mean-y" class="text-sm font-mono font-medium">—</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-slate-500">Std Dev (s)</span>
+                                    <span id="stat-std-y" class="text-sm font-mono font-medium">—</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Regression & Chart -->
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+                    <div class="flex justify-between items-end mb-4 px-2">
+                        <div>
+                            <h3 class="font-semibold text-slate-700 flex items-center gap-2">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-indigo-500"></i>
+                                Scatter Plot & Regression
+                            </h3>
+                        </div>
+                        <div id="regression-box" class="text-right opacity-0 transition-opacity duration-300">
+                            <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Line of Best Fit</div>
+                            <div id="stat-equation" class="text-sm font-mono text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100">
+                                y = mx + b
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="chart-wrapper" class="h-[350px] w-full bg-slate-50 rounded-lg border border-slate-100 relative overflow-hidden">
+                        <div id="chart-placeholder" class="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
+                            Waiting for valid data...
+                        </div>
+                        <svg id="scatter-plot" class="w-full h-full overflow-visible"></svg>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- State ---
+        let appData = [];
+        let appStats = null;
+        
+        // --- DOM Elements ---
+        const els = {
+            input: document.getElementById('input-area'),
+            btnExample: document.getElementById('btn-example'),
+            btnClear: document.getElementById('btn-clear'),
+            errorBox: document.getElementById('error-box'),
+            errorMsg: document.getElementById('error-msg'),
+            
+            // Stats Output
+            r: document.getElementById('stat-r'),
+            rDesc: document.getElementById('stat-r-desc'),
+            cov: document.getElementById('stat-cov'),
+            n: document.getElementById('stat-n'),
+            meanX: document.getElementById('stat-mean-x'),
+            stdX: document.getElementById('stat-std-x'),
+            meanY: document.getElementById('stat-mean-y'),
+            stdY: document.getElementById('stat-std-y'),
+            
+            // Regression
+            regBox: document.getElementById('regression-box'),
+            equation: document.getElementById('stat-equation'),
+            
+            // Chart
+            chartWrapper: document.getElementById('chart-wrapper'),
+            placeholder: document.getElementById('chart-placeholder'),
+            svg: document.getElementById('scatter-plot')
+        };
+
+        // --- Logic: Parsing ---
+        function parseInputData(text) {
+            const lines = text.trim().split('\n');
+            const parsed = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                // Split by comma, tab, or multiple spaces
+                const parts = line.split(/[,\t\s]+/).filter(p => p !== '');
+                
+                // Skip rows that aren't pairs
+                if (parts.length >= 2) {
+                    const x = parseFloat(parts[0]);
+                    const y = parseFloat(parts[1]);
+                    if (!isNaN(x) && !isNaN(y)) {
+                        parsed.push({ id: i, x, y });
+                    }
+                }
+            }
+
+            if (parsed.length > 0 && parsed.length < 2) {
+                return { data: [], error: "Need at least 2 data points for statistics." };
+            }
+            if (lines.length > 0 && parsed.length === 0 && text.trim().length > 0) {
+                 return { data: [], error: "Could not parse numbers. Use format: X, Y" };
+            }
+
+            return { data: parsed, error: null };
+        }
+
+        // --- Logic: Math ---
+        function calculateStats(data) {
+            const n = data.length;
+            if (n < 2) return null;
+
+            const sumX = data.reduce((a, b) => a + b.x, 0);
+            const sumY = data.reduce((a, b) => a + b.y, 0);
+            const meanX = sumX / n;
+            const meanY = sumY / n;
+
+            // Variance & Covariance (Sample based, n-1)
+            let sumSqDiffX = 0;
+            let sumSqDiffY = 0;
+            let sumCoDiff = 0;
+
+            data.forEach(p => {
+                const dx = p.x - meanX;
+                const dy = p.y - meanY;
+                sumSqDiffX += dx * dx;
+                sumSqDiffY += dy * dy;
+                sumCoDiff += dx * dy;
+            });
+
+            const varianceX = sumSqDiffX / (n - 1);
+            const varianceY = sumSqDiffY / (n - 1);
+            const stdDevX = Math.sqrt(varianceX);
+            const stdDevY = Math.sqrt(varianceY);
+            
+            const covariance = sumCoDiff / (n - 1);
+            
+            // Correlation (r)
+            const correlation = (stdDevX * stdDevY) === 0 ? 0 : covariance / (stdDevX * stdDevY);
+
+            // Linear Regression (y = mx + b)
+            const slope = stdDevX === 0 ? 0 : correlation * (stdDevY / stdDevX);
+            const intercept = meanY - slope * meanX;
+
+            return {
+                n, meanX, meanY, stdDevX, stdDevY, covariance, correlation, slope, intercept
+            };
+        }
+
+        // --- Logic: Rendering ---
+        function updateUI() {
+            // Error Handling
+            if (appStats === null) {
+                // Reset stats displays
+                els.r.textContent = "—";
+                els.cov.textContent = "—";
+                els.n.textContent = "0";
+                els.meanX.textContent = "—";
+                els.meanY.textContent = "—";
+                els.stdX.textContent = "—";
+                els.stdY.textContent = "—";
+                els.rDesc.textContent = "";
+                els.regBox.classList.remove('opacity-100');
+                
+                els.svg.innerHTML = '';
+                els.placeholder.style.display = 'flex';
+                return;
+            }
+
+            // Populate Stats
+            els.r.textContent = appStats.correlation.toFixed(4);
+            els.cov.textContent = appStats.covariance.toFixed(2);
+            els.n.textContent = appStats.n;
+            els.meanX.textContent = appStats.meanX.toFixed(4);
+            els.meanY.textContent = appStats.meanY.toFixed(4);
+            els.stdX.textContent = appStats.stdDevX.toFixed(4);
+            els.stdY.textContent = appStats.stdDevY.toFixed(4);
+
+            // R Description
+            const rVal = Math.abs(appStats.correlation);
+            let desc = "Weak Relationship";
+            if (rVal > 0.7) desc = "Strong Relationship";
+            else if (rVal > 0.3) desc = "Moderate Relationship";
+            els.rDesc.textContent = desc;
+
+            // Regression
+            const op = appStats.intercept >= 0 ? '+' : '-';
+            const bAbs = Math.abs(appStats.intercept).toFixed(3);
+            els.equation.textContent = `y = ${appStats.slope.toFixed(3)}x ${op} ${bAbs}`;
+            els.regBox.classList.add('opacity-100');
+
+            // Render Chart
+            renderChart();
+        }
+
+        function renderChart() {
+            if (!appStats || appData.length < 2) {
+                els.svg.innerHTML = '';
+                els.placeholder.style.display = 'flex';
+                return;
+            }
+
+            els.placeholder.style.display = 'none';
+            els.svg.innerHTML = ''; // Clear
+
+            // Dimensions
+            const rect = els.chartWrapper.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+            const padding = 40;
+            const graphW = width - padding * 2;
+            const graphH = height - padding * 2;
+
+            // Ranges
+            const xVals = appData.map(d => d.x);
+            const yVals = appData.map(d => d.y);
+            
+            const minX = Math.min(...xVals);
+            const maxX = Math.max(...xVals);
+            const minY = Math.min(...yVals);
+            const maxY = Math.max(...yVals);
+
+            // Buffer 10%
+            const rangeX = (maxX - minX) || 1;
+            const rangeY = (maxY - minY) || 1;
+            const domainX = [minX - rangeX * 0.1, maxX + rangeX * 0.1];
+            const domainY = [minY - rangeY * 0.1, maxY + rangeY * 0.1];
+
+            // Scales
+            const scaleX = val => padding + ((val - domainX[0]) / (domainX[1] - domainX[0])) * graphW;
+            const scaleY = val => (height - padding) - ((val - domainY[0]) / (domainY[1] - domainY[0])) * graphH;
+
+            const svgNS = "http://www.w3.org/2000/svg";
+
+            // 1. Grid
+            const gridGroup = document.createElementNS(svgNS, "g");
+            gridGroup.setAttribute("stroke", "#e5e7eb");
+            gridGroup.setAttribute("stroke-dasharray", "4 4");
+            
+            const top = padding;
+            const bottom = height - padding;
+            const left = padding;
+            const right = width - padding;
+
+            const vLine = document.createElementNS(svgNS, "line");
+            vLine.setAttribute("x1", left); vLine.setAttribute("y1", top);
+            vLine.setAttribute("x2", left); vLine.setAttribute("y2", bottom);
+            gridGroup.appendChild(vLine);
+
+            const hLine = document.createElementNS(svgNS, "line");
+            hLine.setAttribute("x1", left); hLine.setAttribute("y1", bottom);
+            hLine.setAttribute("x2", right); hLine.setAttribute("y2", bottom);
+            gridGroup.appendChild(hLine);
+            els.svg.appendChild(gridGroup);
+
+            // 2. Zero Lines (Axes)
+            if (domainX[0] < 0 && domainX[1] > 0) {
+                const x0 = scaleX(0);
+                const line = document.createElementNS(svgNS, "line");
+                line.setAttribute("x1", x0); line.setAttribute("y1", top);
+                line.setAttribute("x2", x0); line.setAttribute("y2", bottom);
+                line.setAttribute("stroke", "#cbd5e1");
+                line.setAttribute("stroke-width", "2");
+                els.svg.appendChild(line);
+            }
+            if (domainY[0] < 0 && domainY[1] > 0) {
+                const y0 = scaleY(0);
+                const line = document.createElementNS(svgNS, "line");
+                line.setAttribute("x1", left); line.setAttribute("y1", y0);
+                line.setAttribute("x2", right); line.setAttribute("y2", y0);
+                line.setAttribute("stroke", "#cbd5e1");
+                line.setAttribute("stroke-width", "2");
+                els.svg.appendChild(line);
+            }
+
+            // 3. Regression Line
+            const x1 = domainX[0];
+            const x2 = domainX[1];
+            const y1 = appStats.slope * x1 + appStats.intercept;
+            const y2 = appStats.slope * x2 + appStats.intercept;
+
+            const regLine = document.createElementNS(svgNS, "line");
+            regLine.setAttribute("x1", scaleX(x1));
+            regLine.setAttribute("y1", scaleY(y1));
+            regLine.setAttribute("x2", scaleX(x2));
+            regLine.setAttribute("y2", scaleY(y2));
+            regLine.setAttribute("stroke", "#f59e0b");
+            regLine.setAttribute("stroke-width", "2");
+            regLine.setAttribute("opacity", "0.7");
+            els.svg.appendChild(regLine);
+
+            // 4. Data Points
+            appData.forEach(p => {
+                const circle = document.createElementNS(svgNS, "circle");
+                circle.setAttribute("cx", scaleX(p.x));
+                circle.setAttribute("cy", scaleY(p.y));
+                circle.setAttribute("r", 5);
+                circle.setAttribute("class", "fill-blue-600 hover:fill-blue-800 transition-colors cursor-pointer");
+                
+                const title = document.createElementNS(svgNS, "title");
+                title.textContent = `X: ${p.x}, Y: ${p.y}`;
+                circle.appendChild(title);
+                els.svg.appendChild(circle);
+            });
+
+            // 5. Labels
+            const labelX = document.createElementNS(svgNS, "text");
+            labelX.setAttribute("x", width/2);
+            labelX.setAttribute("y", height - 10);
+            labelX.setAttribute("text-anchor", "middle");
+            labelX.setAttribute("class", "text-xs fill-slate-400 font-medium");
+            labelX.textContent = "Variable X";
+            els.svg.appendChild(labelX);
+
+            const labelY = document.createElementNS(svgNS, "text");
+            labelY.setAttribute("x", 15);
+            labelY.setAttribute("y", height/2);
+            labelY.setAttribute("text-anchor", "middle");
+            labelY.setAttribute("transform", `rotate(-90, 15, ${height/2})`);
+            labelY.setAttribute("class", "text-xs fill-slate-400 font-medium");
+            labelY.textContent = "Variable Y";
+            els.svg.appendChild(labelY);
+        }
+
+        // --- Event Handlers ---
+        function handleInput() {
+            const val = els.input.value;
+            const res = parseInputData(val);
+            
+            if (res.error) {
+                appStats = null;
+                appData = [];
+                // Only show error if user has actually typed something substantial
+                if (val.trim().length > 0) {
+                    els.errorMsg.textContent = res.error;
+                    els.errorBox.classList.remove('hidden');
+                } else {
+                    els.errorBox.classList.add('hidden');
+                }
+            } else {
+                els.errorBox.classList.add('hidden');
+                appData = res.data;
+                appStats = calculateStats(appData);
+            }
+            updateUI();
+        }
+
+        // --- Initialization ---
+        const exampleData = "85 70\n90 75\n78 65\n92 80\n88 72\n75 60\n80 68\n95 85\n82 70\n86 73";
+
+        els.input.addEventListener('input', handleInput);
+        
+        els.btnExample.addEventListener('click', () => {
+            els.input.value = exampleData;
+            handleInput();
+        });
+
+        els.btnClear.addEventListener('click', () => {
+            els.input.value = "";
+            handleInput();
+        });
+
+        window.addEventListener('resize', () => {
+            requestAnimationFrame(renderChart);
+        });
+
+        // Initialize Icons
+        lucide.createIcons();
+        
+        // Start empty
+        handleInput();
+
+    </script>
+</body>
+</html>
