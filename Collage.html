@@ -3,483 +3,530 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BCKV Field Data Card Generator</title>
+    <title>BCKV Field Data Card</title>
+    <!-- Libraries for PDF Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
+
     <style>
         :root {
-            --border-color: #1a5e1a; /* Dark Green */
+            --border-color: #1a5e1a;
             --text-maroon: #990033;
             --text-brown: #5c2821;
-            --bg-color: #ffffff;
         }
 
         body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+            background-color: #333; /* Dark background to see the paper better */
+            margin: 0;
+            padding: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin: 0;
-            padding: 20px;
-            /* Prevent scrolling while manipulating images on mobile */
-            overscroll-behavior: none; 
+            height: 100vh;
+            overflow: hidden; /* Prevent body scroll, we zoom the canvas instead */
+            touch-action: none;
         }
 
-        /* Controls Section */
-        .controls {
-            margin-bottom: 20px;
-            padding: 15px;
+        /* --- UI CONTROLS --- */
+        .ui-bar {
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            text-align: center;
             width: 100%;
-            max-width: 800px;
+            padding: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            flex-shrink: 0;
         }
 
         .btn {
-            padding: 10px 20px;
-            margin: 5px;
-            cursor: pointer;
-            background-color: var(--border-color);
+            background: var(--border-color);
             color: white;
             border: none;
+            padding: 8px 12px;
             border-radius: 4px;
             font-size: 14px;
+            cursor: pointer;
         }
 
-        .btn:hover { opacity: 0.9; }
-        
-        .instructions {
+        .info-text {
+            width: 100%;
+            text-align: center;
             font-size: 12px;
             color: #666;
             margin-top: 5px;
         }
 
-        /* The Main A4 Sheet */
-        #canvas-container {
-            width: 794px; /* A4 width at 96dpi */
-            height: 1123px; /* A4 height at 96dpi */
-            background-color: white;
-            border: 8px solid var(--border-color); /* The thick green border */
-            box-sizing: border-box;
-            padding: 15px;
-            position: relative;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        /* --- WORKSPACE --- */
+        #workspace {
+            flex-grow: 1;
+            width: 100%;
             display: flex;
-            flex-direction: column;
-            /* Ensure touches inside don't scroll the page */
-            touch-action: none; 
+            justify-content: center;
+            align-items: flex-start;
+            overflow: auto; /* Allow scrolling if zoomed in */
+            padding: 20px;
+            box-sizing: border-box;
+            background: #555;
+            touch-action: none; /* Handled by JS */
         }
 
-        /* Layout Grid */
+        /* --- A4 SHEET --- */
+        /* Dimensions are fixed to A4 pixel ratio at 96dpi (794x1123) */
+        #canvas-container {
+            width: 794px;
+            height: 1123px;
+            background-color: white;
+            border: 8px solid var(--border-color);
+            position: relative;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            /* Important: This allows us to scale it via JS */
+            transform-origin: top center; 
+            flex-shrink: 0;
+        }
+
         .layout-grid {
             display: flex;
             flex-direction: column;
             gap: 15px;
             height: 100%;
+            padding: 15px;
+            box-sizing: border-box;
         }
 
-        /* Image Containers */
+        /* --- IMAGE SLOTS --- */
         .img-wrapper {
             position: relative;
             background-color: #eee;
             overflow: hidden;
+            border: 1px dashed #aaa;
             cursor: grab;
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 1px dashed #ccc; /* Helper border, remove for print */
-            touch-action: none;
+            touch-action: none; /* Vital for pointer events */
         }
-
-        .img-wrapper:active {
-            cursor: grabbing;
+        
+        .img-wrapper.active {
+            border: 2px solid blue;
         }
 
         .img-wrapper img {
             position: absolute;
-            transform-origin: center;
-            max-width: none; 
+            /* Start centered */
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            /* Prevent default drag ghost image */
             user-select: none;
-            pointer-events: none; 
+            pointer-events: none;
+            max-width: none; /* Allow unlimited scaling */
         }
 
-        /* Placeholder text */
         .placeholder-text {
             pointer-events: none;
-            color: #888;
+            color: #777;
             font-size: 14px;
             text-align: center;
-            position: absolute;
-            z-index: 10;
+            padding: 10px;
         }
 
-        /* Specific Sections */
-        .top-section {
-            width: 100%;
-            height: 320px; 
-            display: flex;
-            flex-direction: column;
+        /* --- SECTIONS --- */
+        .top-section { height: 320px; display: flex; flex-direction: column; }
+        .middle-grid, .bottom-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr 1fr; 
+            gap: 10px; 
+            height: 250px; 
         }
 
-        .middle-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 15px;
-            height: 250px;
-        }
-
-        .bottom-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 15px;
-            height: 250px;
-        }
-
-        /* Captions */
+        /* --- TEXT --- */
         .caption {
             text-align: center;
-            font-size: 18px;
-            color: black;
+            font-size: 16px;
             margin-top: 5px;
-            outline: none;
+            border: 1px solid transparent;
         }
-        
-        .caption:focus { border-bottom: 1px solid blue; }
+        .caption:focus { border-bottom: 1px solid blue; outline: none; background: #fffec4; }
 
-        /* Footer Text */
-        .footer-text {
-            margin-top: auto;
-            text-align: center;
-            line-height: 1.4;
-        }
+        .footer-text { margin-top: auto; text-align: center; line-height: 1.4; }
+        .group-info { color: var(--text-maroon); font-weight: bold; font-size: 18px; text-transform: uppercase; }
+        .college-info { color: var(--text-brown); font-weight: bold; font-size: 20px; font-family: 'Arial Black', sans-serif; text-transform: uppercase; }
 
-        .group-info {
-            color: var(--text-maroon);
-            font-weight: bold;
-            font-size: 18px;
-            text-transform: uppercase;
-        }
-
-        .college-info {
-            color: var(--text-brown);
-            font-weight: bold;
-            font-size: 20px;
-            font-family: 'Arial Black', 'Impact', sans-serif;
-            text-transform: uppercase;
-        }
-
-        /* File Inputs (Hidden) */
-        input[type="file"] {
-            display: none;
-        }
-
-        /* Print Specifics */
-        @media print {
-            body { 
-                padding: 0; 
-                background: white; 
-            }
-            .controls { display: none; }
-            #canvas-container {
-                border: 8px solid var(--border-color) !important;
-                box-shadow: none;
-                margin: 0;
-                transform: scale(1) !important; /* Reset zoom for print */
-                page-break-after: always;
-            }
-            .img-wrapper { border: none; background: transparent; }
-            .placeholder-text { display: none; }
-        }
-        
-        /* Mobile adjustment for preview */
-        @media screen and (max-width: 850px) {
-            #canvas-container {
-                transform-origin: top left;
-                transform: scale(0.45); /* Scale down visual for mobile screens */
-                margin-bottom: -500px; /* Remove empty space caused by scaling */
-            }
-        }
+        input[type="file"] { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="controls">
-        <h3>BCKV Field Data Card Generator</h3>
-        <p class="instructions">
-            <b>Desktop:</b> Drag to move, Scroll to zoom, Double-click to rotate.<br>
-            <b>Mobile:</b> Drag to move, <b>Pinch to zoom</b>.<br>
-            Click text to edit.
-        </p>
-        <button class="btn" onclick="downloadImage('jpeg')">Download JPEG</button>
-        <button class="btn" onclick="downloadImage('png')">Download PNG</button>
+    <div class="ui-bar">
+        <button class="btn" onclick="downloadImage()">Download JPEG</button>
         <button class="btn" onclick="downloadPDF()">Download PDF</button>
+        <div class="info-text">1 Finger: Drag | 2 Fingers: Pinch/Zoom | Double Tap: Rotate</div>
     </div>
 
-    <div id="canvas-container">
-        <div class="layout-grid">
-            
-            <div class="top-section">
-                <div class="img-wrapper" id="img-top" style="height: 100%;" onclick="triggerUpload('file-top')">
-                    <span class="placeholder-text">Click to Upload Paddy Field Image</span>
+    <div id="workspace">
+        <div id="canvas-container">
+            <div class="layout-grid">
+                
+                <!-- TOP -->
+                <div class="top-section">
+                    <div class="img-wrapper" id="wrap-top" onclick="handleUploadClick('wrap-top')">
+                        <span class="placeholder-text">Click to Upload Paddy Field</span>
+                        <input type="file" accept="image/*" onchange="fileLoaded(this, 'wrap-top')">
+                    </div>
+                    <div class="caption" contenteditable="true">Paddy Field</div>
                 </div>
-                <div class="caption" contenteditable="true">Paddy Field</div>
-                <input type="file" id="file-top" onchange="loadImage(this, 'img-top')">
-            </div>
 
-            <div class="middle-grid">
-                <div style="display:flex; flex-direction:column;">
-                    <div class="img-wrapper" id="img-m1" style="height: 100%;" onclick="triggerUpload('file-m1')">
-                        <span class="placeholder-text">Upload</span>
+                <!-- MIDDLE -->
+                <div class="middle-grid">
+                    <div style="display:flex; flex-direction:column;">
+                        <div class="img-wrapper" style="height:100%" id="wrap-m1" onclick="handleUploadClick('wrap-m1')">
+                            <span class="placeholder-text">Upload</span>
+                            <input type="file" accept="image/*" onchange="fileLoaded(this, 'wrap-m1')">
+                        </div>
+                        <div class="caption" contenteditable="true">Harvesting of paddy</div>
                     </div>
-                    <div class="caption" contenteditable="true">Harvesting of paddy</div>
-                    <input type="file" id="file-m1" onchange="loadImage(this, 'img-m1')">
-                </div>
-                <div style="display:flex; flex-direction:column;">
-                    <div class="img-wrapper" id="img-m2" style="height: 100%;" onclick="triggerUpload('file-m2')">
-                        <span class="placeholder-text">Upload</span>
+                    <div style="display:flex; flex-direction:column;">
+                        <div class="img-wrapper" style="height:100%" id="wrap-m2" onclick="handleUploadClick('wrap-m2')">
+                            <span class="placeholder-text">Upload</span>
+                            <input type="file" accept="image/*" onchange="fileLoaded(this, 'wrap-m2')">
+                        </div>
+                        <div class="caption" contenteditable="true">Harvesting in group</div>
                     </div>
-                    <div class="caption" contenteditable="true">Harvesting in group</div>
-                    <input type="file" id="file-m2" onchange="loadImage(this, 'img-m2')">
-                </div>
-                <div style="display:flex; flex-direction:column;">
-                    <div class="img-wrapper" id="img-m3" style="height: 100%;" onclick="triggerUpload('file-m3')">
-                        <span class="placeholder-text">Upload</span>
+                    <div style="display:flex; flex-direction:column;">
+                        <div class="img-wrapper" style="height:100%" id="wrap-m3" onclick="handleUploadClick('wrap-m3')">
+                            <span class="placeholder-text">Upload</span>
+                            <input type="file" accept="image/*" onchange="fileLoaded(this, 'wrap-m3')">
+                        </div>
+                        <div class="caption" contenteditable="true">Threshing of paddy</div>
                     </div>
-                    <div class="caption" contenteditable="true">Threshing of paddy</div>
-                    <input type="file" id="file-m3" onchange="loadImage(this, 'img-m3')">
                 </div>
-            </div>
 
-            <div class="bottom-grid">
-                <div style="display:flex; flex-direction:column;">
-                    <div class="img-wrapper" id="img-b1" style="height: 100%;" onclick="triggerUpload('file-b1')">
-                        <span class="placeholder-text">Upload</span>
+                <!-- BOTTOM -->
+                <div class="bottom-grid">
+                    <div style="display:flex; flex-direction:column;">
+                        <div class="img-wrapper" style="height:100%" id="wrap-b1" onclick="handleUploadClick('wrap-b1')">
+                            <span class="placeholder-text">Upload</span>
+                            <input type="file" accept="image/*" onchange="fileLoaded(this, 'wrap-b1')">
+                        </div>
+                        <div class="caption" contenteditable="true">Winnowing</div>
                     </div>
-                    <div class="caption" contenteditable="true">Winnowing</div>
-                    <input type="file" id="file-b1" onchange="loadImage(this, 'img-b1')">
-                </div>
-                <div style="display:flex; flex-direction:column;">
-                    <div class="img-wrapper" id="img-b2" style="height: 100%;" onclick="triggerUpload('file-b2')">
-                        <span class="placeholder-text">Upload</span>
+                    <div style="display:flex; flex-direction:column;">
+                        <div class="img-wrapper" style="height:100%" id="wrap-b2" onclick="handleUploadClick('wrap-b2')">
+                            <span class="placeholder-text">Upload</span>
+                            <input type="file" accept="image/*" onchange="fileLoaded(this, 'wrap-b2')">
+                        </div>
+                        <div class="caption" contenteditable="true">Weighing of grain</div>
                     </div>
-                    <div class="caption" contenteditable="true">Weighing of grain</div>
-                    <input type="file" id="file-b2" onchange="loadImage(this, 'img-b2')">
-                </div>
-                <div style="display:flex; flex-direction:column;">
-                    <div class="img-wrapper" id="img-b3" style="height: 100%;" onclick="triggerUpload('file-b3')">
-                        <span class="placeholder-text">Upload</span>
+                    <div style="display:flex; flex-direction:column;">
+                        <div class="img-wrapper" style="height:100%" id="wrap-b3" onclick="handleUploadClick('wrap-b3')">
+                            <span class="placeholder-text">Upload</span>
+                            <input type="file" accept="image/*" onchange="fileLoaded(this, 'wrap-b3')">
+                        </div>
+                        <div class="caption" contenteditable="true">Weighing of straw</div>
                     </div>
-                    <div class="caption" contenteditable="true">Weighing of straw</div>
-                    <input type="file" id="file-b3" onchange="loadImage(this, 'img-b3')">
                 </div>
-            </div>
 
-            <div class="footer-text">
-                <div class="group-info" contenteditable="true">
-                    GROUP R : AG 171, 172, 173, 174, 175, 176, 177, 178, 179, 180
+                <!-- FOOTER -->
+                <div class="footer-text">
+                    <div class="group-info" contenteditable="true">
+                        GROUP R : AG 171, 172, 173, 174, 175, 176, 177, 178, 179, 180
+                    </div>
+                    <div class="college-info" contenteditable="true">
+                        HARVESTING, THRESHING AND WINNOWING OF PADDY AT INSTRUCTIONAL FARM<br>
+                        B.C.K.V., JAGULI, NADIA
+                    </div>
                 </div>
-                <div class="college-info" contenteditable="true">
-                    HARVESTING, THRESHING AND WINNOWING OF PADDY AT INSTRUCTIONAL FARM<br>
-                    B.C.K.V., JAGULI, NADIA
-                </div>
-            </div>
 
+            </div>
         </div>
     </div>
 
     <script>
-        // State management
-        const imgStates = {};
+        // --- 1. RESPONSIVE SCALING ---
+        const container = document.getElementById('canvas-container');
+        let globalScale = 1;
 
-        function triggerUpload(id) {
-            document.getElementById(id).click();
+        function fitToScreen() {
+            // A4 width is 794px
+            const screenW = window.innerWidth;
+            const margin = 20; 
+            const availableW = screenW - margin;
+            
+            // Calculate scale to fit screen, maxing out at 1 (100%)
+            globalScale = availableW < 794 ? availableW / 794 : 1;
+            
+            // Apply scale
+            container.style.transform = `scale(${globalScale})`;
+            
+            // Adjust height of workspace so user can scroll to bottom of scaled page
+            const scaledHeight = 1123 * globalScale;
+            container.style.marginBottom = `${-(1123 - scaledHeight)}px`; // Pull up empty space
+        }
+        
+        window.addEventListener('resize', fitToScreen);
+        window.addEventListener('load', fitToScreen);
+
+
+        // --- 2. IMAGE HANDLING STATE ---
+        // Store transforms for every image wrapper ID
+        const transforms = {}; 
+
+        // Current Interaction State
+        let activeWrapper = null;
+        let evCache = []; // Pointer cache for multi-touch
+        let prevDiff = -1;
+        let isDragging = false;
+        
+        // Initial values on pointer down
+        let startX = 0, startY = 0;
+        let initialTx = 0, initialTy = 0;
+
+        function getTransform(id) {
+            if(!transforms[id]) {
+                transforms[id] = { x: 0, y: 0, scale: 1, rotate: 0 };
+            }
+            return transforms[id];
         }
 
-        function loadImage(input, wrapperId) {
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const wrapper = document.getElementById(wrapperId);
-                    
-                    wrapper.innerHTML = ''; 
+        // --- 3. UPLOAD LOGIC ---
+        function handleUploadClick(id) {
+            // Only trigger upload if we are NOT dragging/pinching
+            // We use a small timeout to distinguish tap from drag release
+            const input = document.querySelector(`#${id} input`);
+            // If image exists, click might mean "select to edit". 
+            // So we only open file dialog if clicked on placeholder text OR empty area
+            // However, to make it easy: clicking always opens dialog UNLESS we just dragged.
+            // We'll handle this in the pointerup logic actually.
+            if (!document.querySelector(`#${id} img`)) {
+                input.click();
+            }
+        }
 
+        function fileLoaded(input, id) {
+            if(input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const wrapper = document.getElementById(id);
+                    // Remove placeholder
+                    const ph = wrapper.querySelector('.placeholder-text');
+                    if(ph) ph.remove();
+                    
+                    // Remove existing img
+                    const existing = wrapper.querySelector('img');
+                    if(existing) existing.remove();
+
+                    // Add new img
                     const img = document.createElement('img');
                     img.src = e.target.result;
+                    img.id = `img-${id}`;
+                    // Set initial height to match container roughly
                     img.style.height = '100%'; 
+                    img.style.width = 'auto';
                     wrapper.appendChild(img);
-
-                    // Initialize State
-                    imgStates[wrapperId] = {
-                        scale: 1,
-                        panning: false,
-                        pointX: 0,
-                        pointY: 0,
-                        startX: 0,
-                        startY: 0,
-                        rotation: 0,
-                        // Pinch Specifics
-                        lastDist: 0,
-                        pinching: false
-                    };
-
-                    attachListeners(wrapper, img, wrapperId);
-                }
+                    
+                    // Reset transform
+                    transforms[id] = { x: -50, y: -50, scale: 1, rotate: 0, isPercent: true };
+                    applyTransform(img, transforms[id]);
+                    
+                    // Attach Pointer Events
+                    initPointerEvents(wrapper, img, id);
+                };
                 reader.readAsDataURL(input.files[0]);
             }
         }
 
-        function attachListeners(wrapper, img, id) {
-            const state = imgStates[id];
 
-            // --- MOUSE EVENTS (Desktop) ---
-            wrapper.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const xs = (e.clientX - wrapper.getBoundingClientRect().left - state.pointX) / state.scale;
-                const ys = (e.clientY - wrapper.getBoundingClientRect().top - state.pointY) / state.scale;
-                
-                const delta = -e.deltaY;
-                (delta > 0) ? (state.scale *= 1.1) : (state.scale /= 1.1);
-                
-                state.pointX = e.clientX - wrapper.getBoundingClientRect().left - xs * state.scale;
-                state.pointY = e.clientY - wrapper.getBoundingClientRect().top - ys * state.scale;
+        // --- 4. POINTER EVENTS (TOUCH & MOUSE) ---
+        function initPointerEvents(wrapper, img, id) {
+            wrapper.addEventListener('pointerdown', (e) => {
+                e.preventDefault(); // Stop browser scrolling
+                wrapper.setPointerCapture(e.pointerId);
+                evCache.push(e);
+                activeWrapper = wrapper;
 
-                updateTransform(img, state);
-            });
+                const t = getTransform(id);
 
-            wrapper.addEventListener('dblclick', (e) => {
-                e.preventDefault();
-                state.rotation = (state.rotation + 90) % 360;
-                updateTransform(img, state);
-            });
-
-            wrapper.addEventListener('mousedown', (e) => {
-                if(e.target.closest('.placeholder-text')) return;
-                e.preventDefault();
-                state.startX = e.clientX - state.pointX;
-                state.startY = e.clientY - state.pointY;
-                state.panning = true;
-                wrapper.style.cursor = 'grabbing';
-            });
-
-            window.addEventListener('mouseup', () => {
-                state.panning = false;
-                wrapper.style.cursor = 'grab';
-            });
-
-            window.addEventListener('mousemove', (e) => {
-                if (!state.panning) return;
-                e.preventDefault();
-                state.pointX = e.clientX - state.startX;
-                state.pointY = e.clientY - state.startY;
-                updateTransform(img, state);
-            });
-
-
-            // --- TOUCH EVENTS (Mobile/Tablet) ---
-            
-            // Helper to get distance between two fingers
-            function getDistance(touches) {
-                const dx = touches[0].clientX - touches[1].clientX;
-                const dy = touches[0].clientY - touches[1].clientY;
-                return Math.sqrt(dx * dx + dy * dy);
-            }
-
-            wrapper.addEventListener('touchstart', (e) => {
-                if(e.touches.length === 1) {
-                    // Start Pan
-                    state.panning = true;
-                    state.pinching = false;
-                    state.startX = e.touches[0].clientX - state.pointX;
-                    state.startY = e.touches[0].clientY - state.pointY;
-                } else if (e.touches.length === 2) {
+                if (evCache.length === 1) {
+                    // Start Drag
+                    isDragging = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    // Store current CSS pixels
+                    // Note: x/y are stored as Translation Pixels (relative to center)
+                    // But initially they are -50%, -50%. We convert to px on first drag? 
+                    // To keep it simple: We use standard CSS translate. 
+                    // If it was percentage based, we switch to pixel based on first move.
+                    
+                    if (t.isPercent) {
+                        // Convert -50% to px coordinates based on current dimensions
+                        t.x = 0; // Center is 0,0 in translate terms
+                        t.y = 0;
+                        t.isPercent = false;
+                        applyTransform(img, t);
+                    }
+                    initialTx = t.x;
+                    initialTy = t.y;
+                } 
+                else if (evCache.length === 2) {
                     // Start Pinch
-                    e.preventDefault(); // Stop browser zoom
-                    state.panning = false;
-                    state.pinching = true;
-                    state.lastDist = getDistance(e.touches);
+                    isDragging = false;
+                    prevDiff = getDistance(evCache[0], evCache[1]);
                 }
-            }, {passive: false});
+            });
 
-            wrapper.addEventListener('touchmove', (e) => {
-                if(state.panning && e.touches.length === 1) {
-                    e.preventDefault();
-                    state.pointX = e.touches[0].clientX - state.startX;
-                    state.pointY = e.touches[0].clientY - state.startY;
-                    updateTransform(img, state);
-                } else if (state.pinching && e.touches.length === 2) {
-                    e.preventDefault();
-                    const dist = getDistance(e.touches);
-                    // Calculate Zoom Factor
-                    const zoomFactor = dist / state.lastDist;
+            wrapper.addEventListener('pointermove', (e) => {
+                const index = evCache.findIndex(cached => cached.pointerId === e.pointerId);
+                if(index > -1) evCache[index] = e; // Update cache
+
+                if (!activeWrapper || activeWrapper !== wrapper) return;
+                const t = getTransform(id);
+
+                // --- DRAG (1 Finger) ---
+                if (evCache.length === 1) {
+                    const dx = (e.clientX - startX) / globalScale; // Adjust for Global Zoom
+                    const dy = (e.clientY - startY) / globalScale;
                     
-                    // Apply relative zoom
-                    state.scale *= zoomFactor;
+                    t.x = initialTx + dx;
+                    t.y = initialTy + dy;
                     
-                    // Prevent too small
-                    if(state.scale < 0.1) state.scale = 0.1;
-                    
-                    state.lastDist = dist;
-                    updateTransform(img, state);
+                    applyTransform(img, t);
                 }
-            }, {passive: false});
+                
+                // --- PINCH (2 Fingers) ---
+                else if (evCache.length === 2) {
+                    const curDiff = getDistance(evCache[0], evCache[1]);
+                    if (prevDiff > 0) {
+                        // Calculate zoom factor
+                        const delta = curDiff - prevDiff;
+                        // Sensitivity factor
+                        const zoomSpeed = 0.01; 
+                        
+                        t.scale += delta * zoomSpeed;
+                        if (t.scale < 0.1) t.scale = 0.1; // Min zoom
+                        
+                        applyTransform(img, t);
+                    }
+                    prevDiff = curDiff;
+                }
+            });
 
-            wrapper.addEventListener('touchend', (e) => {
-                state.panning = false;
-                state.pinching = false;
+            wrapper.addEventListener('pointerup', handlePointerUp);
+            wrapper.addEventListener('pointercancel', handlePointerUp);
+            wrapper.addEventListener('pointerout', handlePointerUp);
+            wrapper.addEventListener('pointerleave', handlePointerUp);
+
+            function handlePointerUp(e) {
+                const index = evCache.findIndex(cached => cached.pointerId === e.pointerId);
+                if (index > -1) evCache.splice(index, 1);
+                
+                if (evCache.length < 2) prevDiff = -1;
+                if (evCache.length === 0) activeWrapper = null;
+                
+                // Double Tap Detection for Rotation
+                // (Optional simplified version: use a button or assume double click event)
+            }
+            
+            // Double Click for Rotate (Works on mobile as double tap often)
+            wrapper.addEventListener('dblclick', (e) => {
+                const t = getTransform(id);
+                t.rotate = (t.rotate + 90) % 360;
+                applyTransform(img, t);
             });
         }
 
-        function updateTransform(img, state) {
-            img.style.transform = `translate(${state.pointX}px, ${state.pointY}px) scale(${state.scale}) rotate(${state.rotation}deg)`;
+        function getDistance(p1, p2) {
+            const dx = p1.clientX - p2.clientX;
+            const dy = p1.clientY - p2.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
         }
 
-        // Export Functions
-        async function prepareCanvas() {
-            const placeholders = document.querySelectorAll('.placeholder-text');
-            placeholders.forEach(p => p.style.opacity = '0');
-            const wrappers = document.querySelectorAll('.img-wrapper');
-            wrappers.forEach(w => w.style.border = 'none');
+        function applyTransform(img, t) {
+            // We use translate(-50%, -50%) to center the image initially, 
+            // but once we move, we use pixel translate relative to center.
+            // So logic:
+            // 1. Position absolute, left 50%, top 50%.
+            // 2. transform: translate(tx, ty) scale(s) rotate(r) translate(-50%, -50%)
+            // This ensures scaling happens from center, and rotation happens from center.
+            
+            img.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale}) rotate(${t.rotate}deg) translate(-50%, -50%)`;
+        }
 
-            // Temporarily reset page transform for clean capture if needed
-            // But usually HTML2Canvas handles DOM state
+        // --- 5. EXPORT ---
+        async function downloadImage() {
+            // Temporarily reset global scale to 1 for clean capture? 
+            // No, html2canvas needs the element to be visible.
+            // We will capture the element as is, but specify window size.
             
             const element = document.getElementById("canvas-container");
+            
+            // Hide borders/placeholders
+            const dashed = document.querySelectorAll('.img-wrapper');
+            dashed.forEach(d => d.style.border = 'none');
+            const placeholders = document.querySelectorAll('.placeholder-text');
+            placeholders.forEach(p => p.style.opacity = '0');
+
+            // Force scale to 1 for high res capture, then restore
+            const oldTransform = element.style.transform;
+            const oldMargin = element.style.marginBottom;
+            element.style.transform = 'scale(1)';
+            element.style.marginBottom = '0';
+
             const canvas = await html2canvas(element, {
-                scale: 2, 
+                scale: 2, // High res
                 useCORS: true,
-                allowTaint: true
+                windowWidth: 794,
+                windowHeight: 1123
             });
 
-            placeholders.forEach(p => p.style.opacity = '1');
-            wrappers.forEach(w => w.style.border = '1px dashed #ccc');
-            
-            return canvas;
-        }
+            // Restore
+            element.style.transform = oldTransform;
+            element.style.marginBottom = oldMargin;
+            dashed.forEach(d => d.style.border = '1px dashed #aaa');
+  placeholders.forEach(p => p.style.opacity = '1');
 
-        async function downloadImage(format) {
-            const canvas = await prepareCanvas();
             const link = document.createElement('a');
-            link.download = `bckv-field-card.${format}`;
-            link.href = canvas.toDataURL(`image/${format}`);
+            link.download = 'bckv_card.jpg';
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
             link.click();
         }
 
         async function downloadPDF() {
+            const element = document.getElementById("canvas-container");
+            
+            // Hide UI elements
+            const dashed = document.querySelectorAll('.img-wrapper');
+            dashed.forEach(d => d.style.border = 'none');
+            const placeholders = document.querySelectorAll('.placeholder-text');
+            placeholders.forEach(p => p.style.opacity = '0');
+
+            // Reset scale for capture
+            const oldTransform = element.style.transform;
+            const oldMargin = element.style.marginBottom;
+            element.style.transform = 'scale(1)';
+            element.style.marginBottom = '0';
+
+            const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+            
+            // Restore UI
+            element.style.transform = oldTransform;
+            element.style.marginBottom = oldMargin;
+            dashed.forEach(d => d.style.border = '1px dashed #aaa');
+            placeholders.forEach(p => p.style.opacity = '1');
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.9);
             const { jsPDF } = window.jspdf;
-            const canvas = await prepareCanvas();
-            const imgData = canvas.toDataURL('image/jpeg', 1.0);
-            
             const pdf = new jsPDF('p', 'mm', 'a4');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const w = pdf.internal.pageSize.getWidth();
+            const h = pdf.internal.pageSize.getHeight();
             
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save('bckv-field-card.pdf');
+            pdf.addImage(imgData, 'JPEG', 0, 0, w, h);
+            pdf.save('bckv_card.pdf');
         }
+
     </script>
 </body>
 </html>
