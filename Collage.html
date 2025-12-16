@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BCKV Field Data Card Generator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -23,6 +23,8 @@
             align-items: center;
             margin: 0;
             padding: 20px;
+            /* Prevent scrolling while manipulating images on mobile */
+            overscroll-behavior: none; 
         }
 
         /* Controls Section */
@@ -39,7 +41,7 @@
 
         .btn {
             padding: 10px 20px;
-            margin: 0 5px;
+            margin: 5px;
             cursor: pointer;
             background-color: var(--border-color);
             color: white;
@@ -68,6 +70,8 @@
             box-shadow: 0 0 15px rgba(0,0,0,0.2);
             display: flex;
             flex-direction: column;
+            /* Ensure touches inside don't scroll the page */
+            touch-action: none; 
         }
 
         /* Layout Grid */
@@ -83,23 +87,24 @@
             position: relative;
             background-color: #eee;
             overflow: hidden;
-            cursor: move;
+            cursor: grab;
             display: flex;
             align-items: center;
             justify-content: center;
             border: 1px dashed #ccc; /* Helper border, remove for print */
+            touch-action: none;
         }
 
-        .img-wrapper:hover {
-            border-color: #666;
+        .img-wrapper:active {
+            cursor: grabbing;
         }
 
         .img-wrapper img {
             position: absolute;
             transform-origin: center;
-            max-width: none; /* Allow zooming */
+            max-width: none; 
             user-select: none;
-            pointer-events: none; /* Let clicks pass to wrapper for drag logic */
+            pointer-events: none; 
         }
 
         /* Placeholder text */
@@ -115,7 +120,7 @@
         /* Specific Sections */
         .top-section {
             width: 100%;
-            height: 320px; /* Adjust based on visual ratio */
+            height: 320px; 
             display: flex;
             flex-direction: column;
         }
@@ -183,10 +188,20 @@
                 border: 8px solid var(--border-color) !important;
                 box-shadow: none;
                 margin: 0;
+                transform: scale(1) !important; /* Reset zoom for print */
                 page-break-after: always;
             }
             .img-wrapper { border: none; background: transparent; }
             .placeholder-text { display: none; }
+        }
+        
+        /* Mobile adjustment for preview */
+        @media screen and (max-width: 850px) {
+            #canvas-container {
+                transform-origin: top left;
+                transform: scale(0.45); /* Scale down visual for mobile screens */
+                margin-bottom: -500px; /* Remove empty space caused by scaling */
+            }
         }
     </style>
 </head>
@@ -195,9 +210,9 @@
     <div class="controls">
         <h3>BCKV Field Data Card Generator</h3>
         <p class="instructions">
-            1. <b>Click</b> a gray box to upload an image.<br>
-            2. <b>Drag</b> the image to move it. <b>Scroll</b> to Zoom. <b>Double Click</b> to Rotate.<br>
-            3. <b>Click text</b> to edit names, roll numbers, or captions.<br>
+            <b>Desktop:</b> Drag to move, Scroll to zoom, Double-click to rotate.<br>
+            <b>Mobile:</b> Drag to move, <b>Pinch to zoom</b>.<br>
+            Click text to edit.
         </p>
         <button class="btn" onclick="downloadImage('jpeg')">Download JPEG</button>
         <button class="btn" onclick="downloadImage('png')">Download PNG</button>
@@ -277,7 +292,7 @@
     </div>
 
     <script>
-        // State management for image transforms
+        // State management
         const imgStates = {};
 
         function triggerUpload(id) {
@@ -290,12 +305,11 @@
                 reader.onload = function(e) {
                     const wrapper = document.getElementById(wrapperId);
                     
-                    // Clear previous content
                     wrapper.innerHTML = ''; 
 
                     const img = document.createElement('img');
                     img.src = e.target.result;
-                    img.style.height = '100%'; // Initial fit
+                    img.style.height = '100%'; 
                     wrapper.appendChild(img);
 
                     // Initialize State
@@ -306,7 +320,10 @@
                         pointY: 0,
                         startX: 0,
                         startY: 0,
-                        rotation: 0
+                        rotation: 0,
+                        // Pinch Specifics
+                        lastDist: 0,
+                        pinching: false
                     };
 
                     attachListeners(wrapper, img, wrapperId);
@@ -318,7 +335,7 @@
         function attachListeners(wrapper, img, id) {
             const state = imgStates[id];
 
-            // 1. Zoom (Wheel)
+            // --- MOUSE EVENTS (Desktop) ---
             wrapper.addEventListener('wheel', (e) => {
                 e.preventDefault();
                 const xs = (e.clientX - wrapper.getBoundingClientRect().left - state.pointX) / state.scale;
@@ -333,14 +350,12 @@
                 updateTransform(img, state);
             });
 
-            // 2. Rotate (Double Click)
             wrapper.addEventListener('dblclick', (e) => {
                 e.preventDefault();
                 state.rotation = (state.rotation + 90) % 360;
                 updateTransform(img, state);
             });
 
-            // 3. Pan (Mouse/Touch)
             wrapper.addEventListener('mousedown', (e) => {
                 if(e.target.closest('.placeholder-text')) return;
                 e.preventDefault();
@@ -352,15 +367,69 @@
 
             window.addEventListener('mouseup', () => {
                 state.panning = false;
-                wrapper.style.cursor = 'move';
+                wrapper.style.cursor = 'grab';
             });
 
-            wrapper.addEventListener('mousemove', (e) => {
+            window.addEventListener('mousemove', (e) => {
                 if (!state.panning) return;
                 e.preventDefault();
                 state.pointX = e.clientX - state.startX;
                 state.pointY = e.clientY - state.startY;
                 updateTransform(img, state);
+            });
+
+
+            // --- TOUCH EVENTS (Mobile/Tablet) ---
+            
+            // Helper to get distance between two fingers
+            function getDistance(touches) {
+                const dx = touches[0].clientX - touches[1].clientX;
+                const dy = touches[0].clientY - touches[1].clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            wrapper.addEventListener('touchstart', (e) => {
+                if(e.touches.length === 1) {
+                    // Start Pan
+                    state.panning = true;
+                    state.pinching = false;
+                    state.startX = e.touches[0].clientX - state.pointX;
+                    state.startY = e.touches[0].clientY - state.pointY;
+                } else if (e.touches.length === 2) {
+                    // Start Pinch
+                    e.preventDefault(); // Stop browser zoom
+                    state.panning = false;
+                    state.pinching = true;
+                    state.lastDist = getDistance(e.touches);
+                }
+            }, {passive: false});
+
+            wrapper.addEventListener('touchmove', (e) => {
+                if(state.panning && e.touches.length === 1) {
+                    e.preventDefault();
+                    state.pointX = e.touches[0].clientX - state.startX;
+                    state.pointY = e.touches[0].clientY - state.startY;
+                    updateTransform(img, state);
+                } else if (state.pinching && e.touches.length === 2) {
+                    e.preventDefault();
+                    const dist = getDistance(e.touches);
+                    // Calculate Zoom Factor
+                    const zoomFactor = dist / state.lastDist;
+                    
+                    // Apply relative zoom
+                    state.scale *= zoomFactor;
+                    
+                    // Prevent too small
+                    if(state.scale < 0.1) state.scale = 0.1;
+                    
+                    state.lastDist = dist;
+                    updateTransform(img, state);
+                }
+            }, {passive: false});
+
+            wrapper.addEventListener('touchend', (e) => {
+                state.panning = false;
+                state.pinching = false;
             });
         }
 
@@ -370,19 +439,21 @@
 
         // Export Functions
         async function prepareCanvas() {
-            // Hide placeholders before print
             const placeholders = document.querySelectorAll('.placeholder-text');
             placeholders.forEach(p => p.style.opacity = '0');
             const wrappers = document.querySelectorAll('.img-wrapper');
             wrappers.forEach(w => w.style.border = 'none');
 
+            // Temporarily reset page transform for clean capture if needed
+            // But usually HTML2Canvas handles DOM state
+            
             const element = document.getElementById("canvas-container");
             const canvas = await html2canvas(element, {
-                scale: 2, // Higher quality
-                useCORS: true
+                scale: 2, 
+                useCORS: true,
+                allowTaint: true
             });
 
-            // Restore
             placeholders.forEach(p => p.style.opacity = '1');
             wrappers.forEach(w => w.style.border = '1px dashed #ccc');
             
@@ -402,7 +473,6 @@
             const canvas = await prepareCanvas();
             const imgData = canvas.toDataURL('image/jpeg', 1.0);
             
-            // A4 dimensions in mm
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
