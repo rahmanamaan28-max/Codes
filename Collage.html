@@ -2,277 +2,273 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Project Creator Tool</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BCKV Field Data Card Generator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
+    
     <style>
+        :root {
+            --border-color: #1a5e1a; /* Dark Green */
+            --text-maroon: #990033;
+            --text-brown: #5c2821;
+            --bg-color: #ffffff;
+        }
+
         body {
-            font-family: 'Segoe UI', sans-serif;
-            background-color: #eef2f5;
-            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
             display: flex;
             flex-direction: column;
             align-items: center;
+            margin: 0;
             padding: 20px;
-            overscroll-behavior: none; /* Prevent browser swipe navigation */
         }
 
-        /* Controls Panel */
+        /* Controls Section */
         .controls {
-            position: sticky;
-            top: 10px;
-            z-index: 1000;
-            background: white;
-            padding: 10px 20px;
-            border-radius: 50px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: center;
             margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 800px;
         }
 
-        button {
-            padding: 8px 16px;
+        .btn {
+            padding: 10px 20px;
+            margin: 0 5px;
             cursor: pointer;
-            background-color: #2c3e50;
+            background-color: var(--border-color);
             color: white;
             border: none;
-            border-radius: 20px;
+            border-radius: 4px;
             font-size: 14px;
-            transition: 0.2s;
         }
 
-        button:hover { background-color: #4ca1af; }
-
-        /* The Sheet (A4 Dimensions Approx) */
-        #project-sheet {
-            width: 100%;
-            max-width: 794px; /* A4 width in px at 96dpi approx */
-            min-height: 1123px; /* A4 height */
-            background-color: white;
-            box-shadow: 0 0 25px rgba(0,0,0,0.1);
-            padding: 40px; /* Margins */
-            box-sizing: border-box;
-            position: relative;
-        }
-
-        /* Inner Border Box */
-        .inner-border {
-            border: 2px solid #000;
-            height: 100%;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        /* Image Grid Layout */
-        .layout-container {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        /* Top Large Image */
-        .top-section {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-        }
+        .btn:hover { opacity: 0.9; }
         
-        .grid-section {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 15px; /* Spacing between columns */
-            row-gap: 25px; /* Spacing between rows */
+        .instructions {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
         }
 
-        /* Image Slot Styles */
-        .img-slot-wrapper {
+        /* The Main A4 Sheet */
+        #canvas-container {
+            width: 794px; /* A4 width at 96dpi */
+            height: 1123px; /* A4 height at 96dpi */
+            background-color: white;
+            border: 8px solid var(--border-color); /* The thick green border */
+            box-sizing: border-box;
+            padding: 15px;
+            position: relative;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
             display: flex;
             flex-direction: column;
-            align-items: center;
         }
 
-        .img-slot {
-            width: 100%;
-            background-color: #f0f0f0;
-            border: 1px solid #ccc;
-            overflow: hidden;
-            position: relative;
-            cursor: grab;
+        /* Layout Grid */
+        .layout-grid {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+        }
+
+        /* Image Containers */
+        .img-wrapper {
+            position: relative;
+            background-color: #eee;
+            overflow: hidden;
+            cursor: move;
+            display: flex;
             align-items: center;
-            touch-action: none; /* Critical for custom touch handling */
+            justify-content: center;
+            border: 1px dashed #ccc; /* Helper border, remove for print */
         }
 
-        .img-slot.large {
-            height: 250px;
-            width: 100%;
+        .img-wrapper:hover {
+            border-color: #666;
         }
 
-        .img-slot.small {
-            aspect-ratio: 1/1;
-            width: 100%;
-        }
-
-        .img-slot img {
+        .img-wrapper img {
             position: absolute;
             transform-origin: center;
-            pointer-events: none; /* Let clicks pass to container */
+            max-width: none; /* Allow zooming */
+            user-select: none;
+            pointer-events: none; /* Let clicks pass to wrapper for drag logic */
         }
 
+        /* Placeholder text */
         .placeholder-text {
-            color: #888;
-            font-size: 12px;
-            text-align: center;
             pointer-events: none;
-        }
-
-        /* Editable Labels */
-        .label {
-            margin-top: 8px;
-            text-align: center;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
+            color: #888;
             font-size: 14px;
-            min-height: 20px;
-            width: 100%;
-            outline: none;
-            border: 1px dashed transparent;
-        }
-        .label:hover, .label:focus { border-color: #ccc; }
-
-        /* Footer Texts */
-        .footer-section {
-            margin-top: 40px;
             text-align: center;
-            font-family: 'Comic Sans MS', cursive, sans-serif;
+            position: absolute;
+            z-index: 10;
         }
 
-        .group-text {
-            font-size: 18px;
-            margin-bottom: 20px;
-            font-weight: bold;
-            outline: none;
+        /* Specific Sections */
+        .top-section {
+            width: 100%;
+            height: 320px; /* Adjust based on visual ratio */
+            display: flex;
+            flex-direction: column;
         }
 
-        .title-text {
-            text-transform: uppercase;
-            font-size: 16px;
-            line-height: 1.6;
-            font-weight: bold;
-            outline: none;
-            border: 1px dashed transparent;
-        }
-        .title-text:hover { border-color: #ccc; }
-
-        /* Tools Panel overlay */
-        .edit-tools {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 30px;
-            display: none; /* Hidden by default */
-            z-index: 2000;
-            align-items: center;
+        .middle-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 15px;
+            height: 250px;
+        }
+
+        .bottom-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            height: 250px;
+        }
+
+        /* Captions */
+        .caption {
+            text-align: center;
+            font-size: 18px;
+            color: black;
+            margin-top: 5px;
+            outline: none;
         }
         
-        .active-slot {
-            box-shadow: 0 0 0 3px #3498db;
+        .caption:focus { border-bottom: 1px solid blue; }
+
+        /* Footer Text */
+        .footer-text {
+            margin-top: auto;
+            text-align: center;
+            line-height: 1.4;
         }
 
-        /* Range Slider */
-        input[type=range] { vertical-align: middle; }
+        .group-info {
+            color: var(--text-maroon);
+            font-weight: bold;
+            font-size: 18px;
+            text-transform: uppercase;
+        }
+
+        .college-info {
+            color: var(--text-brown);
+            font-weight: bold;
+            font-size: 20px;
+            font-family: 'Arial Black', 'Impact', sans-serif;
+            text-transform: uppercase;
+        }
+
+        /* File Inputs (Hidden) */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Print Specifics */
+        @media print {
+            body { 
+                padding: 0; 
+                background: white; 
+            }
+            .controls { display: none; }
+            #canvas-container {
+                border: 8px solid var(--border-color) !important;
+                box-shadow: none;
+                margin: 0;
+                page-break-after: always;
+            }
+            .img-wrapper { border: none; background: transparent; }
+            .placeholder-text { display: none; }
+        }
     </style>
 </head>
 <body>
 
     <div class="controls">
-        <button onclick="download('jpeg')">Save JPEG</button>
-        <button onclick="download('png')">Save PNG</button>
-        <button onclick="downloadPDF()">Save PDF</button>
+        <h3>BCKV Field Data Card Generator</h3>
+        <p class="instructions">
+            1. <b>Click</b> a gray box to upload an image.<br>
+            2. <b>Drag</b> the image to move it. <b>Scroll</b> to Zoom. <b>Double Click</b> to Rotate.<br>
+            3. <b>Click text</b> to edit names, roll numbers, or captions.<br>
+        </p>
+        <button class="btn" onclick="downloadImage('jpeg')">Download JPEG</button>
+        <button class="btn" onclick="downloadImage('png')">Download PNG</button>
+        <button class="btn" onclick="downloadPDF()">Download PDF</button>
     </div>
 
-    <div class="edit-tools" id="editTools">
-        <span>Rotate:</span>
-        <input type="range" min="-180" max="180" value="0" oninput="rotateImage(this.value)">
-        <button onclick="triggerFile()" style="background:#555; font-size:12px; padding: 4px 10px;">Change Photo</button>
-    </div>
-
-    <div id="project-sheet">
-        <div class="inner-border">
+    <div id="canvas-container">
+        <div class="layout-grid">
             
-            <div class="layout-container">
-                <div class="top-section">
-                    <div class="img-slot large" id="slot1" onmousedown="selectSlot('slot1')" ontouchstart="selectSlot('slot1')">
-                        <div class="placeholder-text">Tap to Upload Image</div>
-                    </div>
-                    <div class="label" contenteditable="true">Paddy field</div>
+            <div class="top-section">
+                <div class="img-wrapper" id="img-top" style="height: 100%;" onclick="triggerUpload('file-top')">
+                    <span class="placeholder-text">Click to Upload Paddy Field Image</span>
                 </div>
+                <div class="caption" contenteditable="true">Paddy Field</div>
+                <input type="file" id="file-top" onchange="loadImage(this, 'img-top')">
+            </div>
 
-                <div class="grid-section">
-                    <div class="img-slot-wrapper">
-                        <div class="img-slot small" id="slot2" onmousedown="selectSlot('slot2')" ontouchstart="selectSlot('slot2')">
-                            <div class="placeholder-text">Upload</div>
-                        </div>
-                        <div class="label" contenteditable="true">Harvesting<br>of paddy</div>
+            <div class="middle-grid">
+                <div style="display:flex; flex-direction:column;">
+                    <div class="img-wrapper" id="img-m1" style="height: 100%;" onclick="triggerUpload('file-m1')">
+                        <span class="placeholder-text">Upload</span>
                     </div>
-                    
-                    <div class="img-slot-wrapper">
-                        <div class="img-slot small" id="slot3" onmousedown="selectSlot('slot3')" ontouchstart="selectSlot('slot3')">
-                            <div class="placeholder-text">Upload</div>
-                        </div>
-                        <div class="label" contenteditable="true">Harvesting<br>in group</div>
+                    <div class="caption" contenteditable="true">Harvesting of paddy</div>
+                    <input type="file" id="file-m1" onchange="loadImage(this, 'img-m1')">
+                </div>
+                <div style="display:flex; flex-direction:column;">
+                    <div class="img-wrapper" id="img-m2" style="height: 100%;" onclick="triggerUpload('file-m2')">
+                        <span class="placeholder-text">Upload</span>
                     </div>
-
-                    <div class="img-slot-wrapper">
-                        <div class="img-slot small" id="slot4" onmousedown="selectSlot('slot4')" ontouchstart="selectSlot('slot4')">
-                            <div class="placeholder-text">Upload</div>
-                        </div>
-                        <div class="label" contenteditable="true">Threshing of<br>paddy</div>
+                    <div class="caption" contenteditable="true">Harvesting in group</div>
+                    <input type="file" id="file-m2" onchange="loadImage(this, 'img-m2')">
+                </div>
+                <div style="display:flex; flex-direction:column;">
+                    <div class="img-wrapper" id="img-m3" style="height: 100%;" onclick="triggerUpload('file-m3')">
+                        <span class="placeholder-text">Upload</span>
                     </div>
-
-                    <div class="img-slot-wrapper">
-                        <div class="img-slot small" id="slot5" onmousedown="selectSlot('slot5')" ontouchstart="selectSlot('slot5')">
-                            <div class="placeholder-text">Upload</div>
-                        </div>
-                        <div class="label" contenteditable="true">Winnowing</div>
-                    </div>
-
-                    <div class="img-slot-wrapper">
-                        <div class="img-slot small" id="slot6" onmousedown="selectSlot('slot6')" ontouchstart="selectSlot('slot6')">
-                            <div class="placeholder-text">Upload</div>
-                        </div>
-                        <div class="label" contenteditable="true">Weighing of<br>grain</div>
-                    </div>
-
-                    <div class="img-slot-wrapper">
-                        <div class="img-slot small" id="slot7" onmousedown="selectSlot('slot7')" ontouchstart="selectSlot('slot7')">
-                            <div class="placeholder-text">Upload</div>
-                        </div>
-                        <div class="label" contenteditable="true">Weighing of<br>straw</div>
-                    </div>
+                    <div class="caption" contenteditable="true">Threshing of paddy</div>
+                    <input type="file" id="file-m3" onchange="loadImage(this, 'img-m3')">
                 </div>
             </div>
 
-            <div class="footer-section">
-                <div class="group-text" contenteditable="true">Group A : Roll No. 1, 2, 3 ........... 10</div>
-                
-                <div class="title-text" contenteditable="true">
-                    HARVESTING, THRESHING AND WINNOWING<br>
-                    OF PADDY AT INSTRUCTIONAL FARM,<br>
+            <div class="bottom-grid">
+                <div style="display:flex; flex-direction:column;">
+                    <div class="img-wrapper" id="img-b1" style="height: 100%;" onclick="triggerUpload('file-b1')">
+                        <span class="placeholder-text">Upload</span>
+                    </div>
+                    <div class="caption" contenteditable="true">Winnowing</div>
+                    <input type="file" id="file-b1" onchange="loadImage(this, 'img-b1')">
+                </div>
+                <div style="display:flex; flex-direction:column;">
+                    <div class="img-wrapper" id="img-b2" style="height: 100%;" onclick="triggerUpload('file-b2')">
+                        <span class="placeholder-text">Upload</span>
+                    </div>
+                    <div class="caption" contenteditable="true">Weighing of grain</div>
+                    <input type="file" id="file-b2" onchange="loadImage(this, 'img-b2')">
+                </div>
+                <div style="display:flex; flex-direction:column;">
+                    <div class="img-wrapper" id="img-b3" style="height: 100%;" onclick="triggerUpload('file-b3')">
+                        <span class="placeholder-text">Upload</span>
+                    </div>
+                    <div class="caption" contenteditable="true">Weighing of straw</div>
+                    <input type="file" id="file-b3" onchange="loadImage(this, 'img-b3')">
+                </div>
+            </div>
+
+            <div class="footer-text">
+                <div class="group-info" contenteditable="true">
+                    GROUP R : AG 171, 172, 173, 174, 175, 176, 177, 178, 179, 180
+                </div>
+                <div class="college-info" contenteditable="true">
+                    HARVESTING, THRESHING AND WINNOWING OF PADDY AT INSTRUCTIONAL FARM<br>
                     B.C.K.V., JAGULI, NADIA
                 </div>
             </div>
@@ -280,234 +276,139 @@
         </div>
     </div>
 
-    <input type="file" id="uploadInput" accept="image/*" style="display:none">
-
     <script>
-        // State Management
-        let currentSlot = null;
-        const slots = {};
-        const slotIds = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7'];
+        // State management for image transforms
+        const imgStates = {};
 
-        // Initialize slots
-        slotIds.forEach(id => {
-            slots[id] = {
-                img: null,
-                x: 0,
-                y: 0,
-                scale: 1,
-                rotation: 0,
-                hasImage: false
-            };
-            initTouchLogic(id);
-        });
-
-        // UI References
-        const fileInput = document.getElementById('uploadInput');
-        const editTools = document.getElementById('editTools');
-        const rotateRange = editTools.querySelector('input[type=range]');
-
-        function selectSlot(id) {
-            currentSlot = id;
-            
-            // Visual feedback
-            document.querySelectorAll('.img-slot').forEach(el => el.classList.remove('active-slot'));
-            document.getElementById(id).classList.add('active-slot');
-
-            // If empty, trigger upload immediately
-            if (!slots[id].hasImage) {
-                fileInput.click();
-            } else {
-                // Show edit tools
-                editTools.style.display = 'flex';
-                rotateRange.value = slots[id].rotation;
-            }
+        function triggerUpload(id) {
+            document.getElementById(id).click();
         }
 
-        function triggerFile() {
-            fileInput.click();
-        }
-
-        function rotateImage(val) {
-            if(!currentSlot) return;
-            slots[currentSlot].rotation = parseInt(val);
-            updateTransform(currentSlot);
-        }
-
-        // File Upload Handler
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files && e.target.files[0] && currentSlot) {
+        function loadImage(input, wrapperId) {
+            if (input.files && input.files[0]) {
                 const reader = new FileReader();
-                reader.onload = (event) => {
-                    const slotEl = document.getElementById(currentSlot);
+                reader.onload = function(e) {
+                    const wrapper = document.getElementById(wrapperId);
                     
-                    // Remove placeholder
-                    const placeholder = slotEl.querySelector('.placeholder-text');
-                    if(placeholder) placeholder.remove();
-                    
-                    // Remove old image if exists
-                    const oldImg = slotEl.querySelector('img');
-                    if(oldImg) oldImg.remove();
+                    // Clear previous content
+                    wrapper.innerHTML = ''; 
 
-                    // Create new image
                     const img = document.createElement('img');
-                    img.src = event.target.result;
-                    img.onload = () => {
-                        // Fit Logic: Contain within box initially
-                        const ratio = Math.min(slotEl.clientWidth / img.width, slotEl.clientHeight / img.height);
-                        slots[currentSlot].scale = ratio * 1.2; // Slightly larger to fill
-                        updateTransform(currentSlot);
+                    img.src = e.target.result;
+                    img.style.height = '100%'; // Initial fit
+                    wrapper.appendChild(img);
+
+                    // Initialize State
+                    imgStates[wrapperId] = {
+                        scale: 1,
+                        panning: false,
+                        pointX: 0,
+                        pointY: 0,
+                        startX: 0,
+                        startY: 0,
+                        rotation: 0
                     };
 
-                    slotEl.appendChild(img);
-                    slots[currentSlot].img = img;
-                    slots[currentSlot].hasImage = true;
-                    
-                    // Reset position
-                    slots[currentSlot].x = 0;
-                    slots[currentSlot].y = 0;
-                    slots[currentSlot].rotation = 0;
-                    
-                    // Show tools
-                    editTools.style.display = 'flex';
-                    rotateRange.value = 0;
-                };
-                reader.readAsDataURL(e.target.files[0]);
-            }
-            fileInput.value = '';
-        });
-
-        function updateTransform(id) {
-            const s = slots[id];
-            if(s.img) {
-                s.img.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale}) rotate(${s.rotation}deg)`;
+                    attachListeners(wrapper, img, wrapperId);
+                }
+                reader.readAsDataURL(input.files[0]);
             }
         }
 
-        // --- Touch & Mouse Logic (Pan & Pinch) ---
-        function initTouchLogic(id) {
-            const el = document.getElementById(id);
-            
-            let isDragging = false;
-            let startX = 0, startY = 0;
-            let initialPinchDistance = null;
-            let initialScale = 1;
+        function attachListeners(wrapper, img, id) {
+            const state = imgStates[id];
 
-            // Mouse Events
-            el.addEventListener('mousedown', (e) => {
-                if(!slots[id].hasImage) return;
-                isDragging = true;
-                startX = e.clientX - slots[id].x;
-                startY = e.clientY - slots[id].y;
-                el.style.cursor = 'grabbing';
+            // 1. Zoom (Wheel)
+            wrapper.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const xs = (e.clientX - wrapper.getBoundingClientRect().left - state.pointX) / state.scale;
+                const ys = (e.clientY - wrapper.getBoundingClientRect().top - state.pointY) / state.scale;
+                
+                const delta = -e.deltaY;
+                (delta > 0) ? (state.scale *= 1.1) : (state.scale /= 1.1);
+                
+                state.pointX = e.clientX - wrapper.getBoundingClientRect().left - xs * state.scale;
+                state.pointY = e.clientY - wrapper.getBoundingClientRect().top - ys * state.scale;
+
+                updateTransform(img, state);
             });
 
-            window.addEventListener('mousemove', (e) => {
-                if(!isDragging || currentSlot !== id) return;
+            // 2. Rotate (Double Click)
+            wrapper.addEventListener('dblclick', (e) => {
                 e.preventDefault();
-                slots[id].x = e.clientX - startX;
-                slots[id].y = e.clientY - startY;
-                updateTransform(id);
+                state.rotation = (state.rotation + 90) % 360;
+                updateTransform(img, state);
+            });
+
+            // 3. Pan (Mouse/Touch)
+            wrapper.addEventListener('mousedown', (e) => {
+                if(e.target.closest('.placeholder-text')) return;
+                e.preventDefault();
+                state.startX = e.clientX - state.pointX;
+                state.startY = e.clientY - state.pointY;
+                state.panning = true;
+                wrapper.style.cursor = 'grabbing';
             });
 
             window.addEventListener('mouseup', () => {
-                isDragging = false;
-                el.style.cursor = 'grab';
+                state.panning = false;
+                wrapper.style.cursor = 'move';
             });
 
-            // Wheel Zoom
-            el.addEventListener('wheel', (e) => {
-                if(!slots[id].hasImage) return;
+            wrapper.addEventListener('mousemove', (e) => {
+                if (!state.panning) return;
                 e.preventDefault();
-                const delta = e.deltaY > 0 ? 0.9 : 1.1;
-                slots[id].scale *= delta;
-                updateTransform(id);
-            }, { passive: false });
-
-            // Touch Events (Pinch & Pan)
-            el.addEventListener('touchstart', (e) => {
-                if(!slots[id].hasImage) return;
-                
-                if (e.touches.length === 1) {
-                    // Single touch = Pan
-                    isDragging = true;
-                    startX = e.touches[0].clientX - slots[id].x;
-                    startY = e.touches[0].clientY - slots[id].y;
-                } else if (e.touches.length === 2) {
-                    // Two fingers = Pinch
-                    isDragging = false;
-                    initialPinchDistance = getDistance(e.touches);
-                    initialScale = slots[id].scale;
-                }
-            }, { passive: false });
-
-            el.addEventListener('touchmove', (e) => {
-                if(!slots[id].hasImage) return;
-                e.preventDefault(); // Stop page scrolling
-
-                if (e.touches.length === 1 && isDragging) {
-                    slots[id].x = e.touches[0].clientX - startX;
-                    slots[id].y = e.touches[0].clientY - startY;
-                    updateTransform(id);
-                } else if (e.touches.length === 2) {
-                    const currentDistance = getDistance(e.touches);
-                    if (initialPinchDistance) {
-                        const scaleChange = currentDistance / initialPinchDistance;
-                        slots[id].scale = initialScale * scaleChange;
-                        updateTransform(id);
-                    }
-                }
-            }, { passive: false });
-
-            el.addEventListener('touchend', () => {
-                isDragging = false;
-                initialPinchDistance = null;
+                state.pointX = e.clientX - state.startX;
+                state.pointY = e.clientY - state.startY;
+                updateTransform(img, state);
             });
         }
 
-        function getDistance(touches) {
-            const dx = touches[0].clientX - touches[1].clientX;
-            const dy = touches[0].clientY - touches[1].clientY;
-            return Math.sqrt(dx * dx + dy * dy);
+        function updateTransform(img, state) {
+            img.style.transform = `translate(${state.pointX}px, ${state.pointY}px) scale(${state.scale}) rotate(${state.rotation}deg)`;
         }
 
+        // Export Functions
+        async function prepareCanvas() {
+            // Hide placeholders before print
+            const placeholders = document.querySelectorAll('.placeholder-text');
+            placeholders.forEach(p => p.style.opacity = '0');
+            const wrappers = document.querySelectorAll('.img-wrapper');
+            wrappers.forEach(w => w.style.border = 'none');
 
-        // --- Export Functions ---
+            const element = document.getElementById("canvas-container");
+            const canvas = await html2canvas(element, {
+                scale: 2, // Higher quality
+                useCORS: true
+            });
 
-        async function download(type) {
-            document.querySelector('.active-slot')?.classList.remove('active-slot');
-            editTools.style.display = 'none';
-
-            const element = document.getElementById('project-sheet');
+            // Restore
+            placeholders.forEach(p => p.style.opacity = '1');
+            wrappers.forEach(w => w.style.border = '1px dashed #ccc');
             
-            // High quality capture
-            const canvas = await html2canvas(element, { scale: 2, backgroundColor: "#ffffff" });
-            
+            return canvas;
+        }
+
+        async function downloadImage(format) {
+            const canvas = await prepareCanvas();
             const link = document.createElement('a');
-            link.download = `project-work.${type}`;
-            link.href = canvas.toDataURL(`image/${type}`);
+            link.download = `bckv-field-card.${format}`;
+            link.href = canvas.toDataURL(`image/${format}`);
             link.click();
         }
 
         async function downloadPDF() {
-            document.querySelector('.active-slot')?.classList.remove('active-slot');
-            editTools.style.display = 'none';
-
-            const element = document.getElementById('project-sheet');
+            const { jsPDF } = window.jspdf;
+            const canvas = await prepareCanvas();
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
             
-            const canvas = await html2canvas(element, { scale: 2, backgroundColor: "#ffffff" });
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
             // A4 dimensions in mm
-            const pdf = new window.jspdf.jsPDF('p', 'mm', 'a4');
+            const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
             
-            // Calculate image height to fit A4 width
-            const imgProps = pdf.getImageProperties(imgData);
-            const contentHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, contentHeight);
-            pdf.save('project-work.pdf');
+            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save('bckv-field-card.pdf');
         }
     </script>
 </body>
