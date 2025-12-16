@@ -135,7 +135,13 @@
         }
 
         /* --- SECTIONS --- */
-        .top-section { height: 320px; display: flex; flex-direction: column; }
+        /* Fixed: Top section now flexes correctly */
+        .top-section { 
+            height: 340px; 
+            display: flex; 
+            flex-direction: column; 
+        }
+
         .middle-grid, .bottom-grid { 
             display: grid; 
             grid-template-columns: 1fr 1fr 1fr; 
@@ -173,7 +179,8 @@
                 
                 <!-- TOP -->
                 <div class="top-section">
-                    <div class="img-wrapper" id="wrap-top" onclick="handleUploadClick('wrap-top')">
+                    <!-- FIXED: Added style="flex:1" to ensure it fills the top section -->
+                    <div class="img-wrapper" id="wrap-top" style="flex: 1; width: 100%;" onclick="handleUploadClick('wrap-top')">
                         <span class="placeholder-text">Click to Upload Paddy Field</span>
                         <input type="file" accept="image/*" onchange="fileLoaded(this, 'wrap-top')">
                     </div>
@@ -295,14 +302,18 @@
         // --- 3. UPLOAD LOGIC ---
         function handleUploadClick(id) {
             // Only trigger upload if we are NOT dragging/pinching
-            // We use a small timeout to distinguish tap from drag release
             const input = document.querySelector(`#${id} input`);
-            // If image exists, click might mean "select to edit". 
-            // So we only open file dialog if clicked on placeholder text OR empty area
-            // However, to make it easy: clicking always opens dialog UNLESS we just dragged.
-            // We'll handle this in the pointerup logic actually.
+            
+            // If image is missing, click ALWAYS uploads
             if (!document.querySelector(`#${id} img`)) {
                 input.click();
+            } 
+            // If image exists, only upload if we weren't just manipulating it
+            // (The pointer events will stop propagation if dragging occurred, 
+            // but for simple click to re-upload, we allow it if user taps quickly)
+            else {
+                // Optional: Allow re-upload on click if you want
+                // input.click(); 
             }
         }
 
@@ -323,13 +334,22 @@
                     const img = document.createElement('img');
                     img.src = e.target.result;
                     img.id = `img-${id}`;
-                    // Set initial height to match container roughly
-                    img.style.height = '100%'; 
-                    img.style.width = 'auto';
+                    
+                    // Initial Fit Strategy
+                    // For Top Image (wide), width 100% is usually safer initial state
+                    // For Grid Images (square-ish), height 100% is usually safer
+                    if(id === 'wrap-top') {
+                         img.style.width = '100%';
+                         img.style.height = 'auto';
+                    } else {
+                         img.style.height = '100%'; 
+                         img.style.width = 'auto';
+                    }
+
                     wrapper.appendChild(img);
                     
                     // Reset transform
-                    transforms[id] = { x: -50, y: -50, scale: 1, rotate: 0, isPercent: true };
+                    transforms[id] = { x: 0, y: 0, scale: 1, rotate: 0 }; // Start centered (0,0 translates)
                     applyTransform(img, transforms[id]);
                     
                     // Attach Pointer Events
@@ -355,19 +375,6 @@
                     isDragging = true;
                     startX = e.clientX;
                     startY = e.clientY;
-                    // Store current CSS pixels
-                    // Note: x/y are stored as Translation Pixels (relative to center)
-                    // But initially they are -50%, -50%. We convert to px on first drag? 
-                    // To keep it simple: We use standard CSS translate. 
-                    // If it was percentage based, we switch to pixel based on first move.
-                    
-                    if (t.isPercent) {
-                        // Convert -50% to px coordinates based on current dimensions
-                        t.x = 0; // Center is 0,0 in translate terms
-                        t.y = 0;
-                        t.isPercent = false;
-                        applyTransform(img, t);
-                    }
                     initialTx = t.x;
                     initialTy = t.y;
                 } 
@@ -425,9 +432,6 @@
                 
                 if (evCache.length < 2) prevDiff = -1;
                 if (evCache.length === 0) activeWrapper = null;
-                
-                // Double Tap Detection for Rotation
-                // (Optional simplified version: use a button or assume double click event)
             }
             
             // Double Click for Rotate (Works on mobile as double tap often)
@@ -445,22 +449,15 @@
         }
 
         function applyTransform(img, t) {
-            // We use translate(-50%, -50%) to center the image initially, 
-            // but once we move, we use pixel translate relative to center.
-            // So logic:
+            // Logic:
             // 1. Position absolute, left 50%, top 50%.
             // 2. transform: translate(tx, ty) scale(s) rotate(r) translate(-50%, -50%)
             // This ensures scaling happens from center, and rotation happens from center.
-            
             img.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale}) rotate(${t.rotate}deg) translate(-50%, -50%)`;
         }
 
         // --- 5. EXPORT ---
         async function downloadImage() {
-            // Temporarily reset global scale to 1 for clean capture? 
-            // No, html2canvas needs the element to be visible.
-            // We will capture the element as is, but specify window size.
-            
             const element = document.getElementById("canvas-container");
             
             // Hide borders/placeholders
@@ -486,7 +483,7 @@
             element.style.transform = oldTransform;
             element.style.marginBottom = oldMargin;
             dashed.forEach(d => d.style.border = '1px dashed #aaa');
-  placeholders.forEach(p => p.style.opacity = '1');
+            placeholders.forEach(p => p.style.opacity = '1');
 
             const link = document.createElement('a');
             link.download = 'bckv_card.jpg';
