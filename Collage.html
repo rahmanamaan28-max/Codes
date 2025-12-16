@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paddy Field Project Creator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f0f0f0;
+            --paper-color: #fdfdfd;
+            --border-color: #000;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* Controls Area */
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        button {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .tool-panel {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            width: 100%;
+            text-align: center;
+            display: none; /* Hidden until image selected */
+        }
+
+        /* The Main A4/9:16 Sheet */
+        #project-sheet {
+            width: 500px; /* Base width, scales via zoom in browser */
+            aspect-ratio: 9/16;
+            background-color: var(--paper-color);
+            border: 2px solid #333; /* The outer border seen in the image */
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            padding: 20px;
+            box-sizing: border-box;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden; /* Clean edges */
+        }
+
+        /* Inner Layout Box (The rectangle inside the page) */
+        .inner-border {
+            border: 1.5px solid #000;
+            width: 100%;
+            height: 100%;
+            padding: 15px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Grid for Images */
+        .image-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .header-image-container {
+            grid-column: 1 / -1; /* Spans all columns */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        /* Individual Image Slots */
+        .img-slot {
+            width: 100%;
+            background-color: #eee;
+            border: 1px solid #ccc;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* Placeholder Text Styling */
+            color: #888;
+            font-size: 10px;
+            text-align: center;
+            user-select: none;
+        }
+
+        .img-slot.large {
+            height: 160px;
+        }
+
+        .img-slot.small {
+            aspect-ratio: 1/1; /* Square-ish */
+            height: 100px;
+        }
+
+        .img-slot img {
+            position: absolute;
+            max-width: none; /* Allow scaling */
+            pointer-events: none; /* Let the div handle events */
+            transform-origin: center center;
+        }
+
+        /* Labels below images */
+        .label {
+            font-size: 11px;
+            text-align: center;
+            margin-top: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            min-height: 15px;
+            outline: none;
+            border-bottom: 1px dashed transparent;
+        }
+        .label:hover, .label:focus {
+            border-bottom: 1px dashed #999;
+        }
+
+        .col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Footer Text Section */
+        .footer-text {
+            margin-top: auto;
+            text-align: center;
+            font-family: 'Comic Sans MS', 'Comic Neue', cursive, sans-serif; /* Handwritten style */
+            width: 100%;
+        }
+
+        .group-info {
+            font-size: 14px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            outline: none;
+        }
+
+        .main-title {
+            text-transform: uppercase;
+            font-size: 14px;
+            line-height: 1.4;
+            font-weight: bold;
+            outline: none;
+        }
+
+        .sub-title {
+            text-transform: uppercase;
+            font-size: 13px;
+            margin-top: 5px;
+            font-weight: bold;
+            outline: none;
+        }
+
+        /* Hide file inputs */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Instruction Overlay */
+        .selected-ring {
+            box-shadow: 0 0 0 2px blue;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <button onclick="downloadImage('jpeg')">Download JPEG</button>
+        <button onclick="downloadImage('png')">Download PNG</button>
+        <button onclick="downloadPDF()">Download PDF</button>
+        
+        <div class="tool-panel" id="toolPanel">
+            <strong>Adjust Selected Image:</strong><br>
+            <small>Scroll to Zoom, Drag to Move</small><br>
+            <label>Rotate: <input type="range" id="rotateSlider" min="-180" max="180" value="0" oninput="updateRotation(this.value)"></label>
+            <br>
+            <button onclick="removeImage()" style="background: #dc3545; padding: 5px 10px; margin-top:5px; font-size: 12px;">Remove Image</button>
+        </div>
+    </div>
+
+    <div id="project-sheet">
+        <div class="inner-border">
+            
+            <div class="image-grid">
+                <div class="header-image-container">
+                    <div class="img-slot large" id="slot1" onclick="triggerUpload('slot1')">Click to Upload</div>
+                    <div class="label" contenteditable="true">Paddy field</div>
+                </div>
+
+                <div class="col">
+                    <div class="img-slot small" id="slot2" onclick="triggerUpload('slot2')">Upload</div>
+                    <div class="label" contenteditable="true">Harvesting<br>of paddy</div>
+                </div>
+                <div class="col">
+                    <div class="img-slot small" id="slot3" onclick="triggerUpload('slot3')">Upload</div>
+                    <div class="label" contenteditable="true">Harvesting<br>in group</div>
+                </div>
+                <div class="col">
+                    <div class="img-slot small" id="slot4" onclick="triggerUpload('slot4')">Upload</div>
+                    <div class="label" contenteditable="true">Threshing of<br>paddy</div>
+                </div>
+
+                <div class="col">
+                    <div class="img-slot small" id="slot5" onclick="triggerUpload('slot5')">Upload</div>
+                    <div class="label" contenteditable="true">Winnowing</div>
+                </div>
+                <div class="col">
+                    <div class="img-slot small" id="slot6" onclick="triggerUpload('slot6')">Upload</div>
+                    <div class="label" contenteditable="true">Weighing of<br>grain</div>
+                </div>
+                <div class="col">
+                    <div class="img-slot small" id="slot7" onclick="triggerUpload('slot7')">Upload</div>
+                    <div class="label" contenteditable="true">Weighing of<br>straw</div>
+                </div>
+            </div>
+
+            <div class="footer-text">
+                <div class="group-info" contenteditable="true">Group A : Roll No. 1, 2, 3 ........... 10</div>
+                
+                <div class="main-title" contenteditable="true">
+                    HARVESTING, THRESHING AND WINNOWING<br>
+                    OF PADDY AT INSTRUCTIONAL FARM,
+                </div>
+                
+                <div class="sub-title" contenteditable="true">
+                    B.C.K.V., JAGULI, NADIA
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*">
+
+    <script>
+        let currentSlotId = null;
+        let imgState = {}; // Store x, y, scale, rotation for each slot
+
+        const fileInput = document.getElementById('fileInput');
+        const rotateSlider = document.getElementById('rotateSlider');
+        const toolPanel = document.getElementById('toolPanel');
+
+        // Initialize state for slots
+        ['slot1','slot2','slot3','slot4','slot5','slot6','slot7'].forEach(id => {
+            imgState[id] = { x: 0, y: 0, scale: 1, rotate: 0, imgElement: null };
+        });
+
+        function triggerUpload(id) {
+            // If image exists, just select it for editing
+            if(imgState[id].imgElement) {
+                selectSlot(id);
+                return;
+            }
+            // Otherwise open file dialog
+            currentSlotId = id;
+            fileInput.click();
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0] && currentSlotId) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const slot = document.getElementById(currentSlotId);
+                    slot.innerHTML = ''; // Clear placeholder text
+                    
+                    const img = document.createElement('img');
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        // Fit image initially
+                        const ratio = Math.max(slot.clientWidth / img.width, slot.clientHeight / img.height);
+                        imgState[currentSlotId].scale = ratio;
+                        updateTransform(currentSlotId);
+                    };
+
+                    slot.appendChild(img);
+                    imgState[currentSlotId].imgElement = img;
+                    
+                    // Reset State
+                    imgState[currentSlotId].x = 0;
+                    imgState[currentSlotId].y = 0;
+                    imgState[currentSlotId].rotate = 0;
+
+                    selectSlot(currentSlotId);
+                    attachListeners(slot, currentSlotId);
+                }
+                reader.readAsDataURL(e.target.files[0]);
+            }
+            fileInput.value = ''; // Reset
+        });
+
+        function selectSlot(id) {
+            // Remove previous selection styles
+            document.querySelectorAll('.selected-ring').forEach(el => el.classList.remove('selected-ring'));
+            
+            currentSlotId = id;
+            const slot = document.getElementById(id);
+            slot.classList.add('selected-ring');
+            
+            // Show tools
+            toolPanel.style.display = 'block';
+            rotateSlider.value = imgState[id].rotate;
+        }
+
+        function updateRotation(val) {
+            if(!currentSlotId) return;
+            imgState[currentSlotId].rotate = parseInt(val);
+            updateTransform(currentSlotId);
+        }
+
+        function removeImage() {
+            if(!currentSlotId) return;
+            const slot = document.getElementById(currentSlotId);
+            slot.innerHTML = currentSlotId === 'slot1' ? 'Click to Upload' : 'Upload';
+            imgState[currentSlotId].imgElement = null;
+            toolPanel.style.display = 'none';
+        }
+
+        function updateTransform(id) {
+            const s = imgState[id];
+            if(s.imgElement) {
+                s.imgElement.style.transform = `translate(${s.x}px, ${s.y}px) scale(${s.scale}) rotate(${s.rotate}deg)`;
+            }
+        }
+
+        function attachListeners(slot, id) {
+            let isDragging = false;
+            let startX, startY;
+
+            // Mouse Down / Touch Start
+            slot.addEventListener('mousedown', startDrag);
+            slot.addEventListener('touchstart', startDrag, {passive: false});
+
+            function startDrag(e) {
+                e.preventDefault(); // Prevent default drag behavior
+                selectSlot(id); // Select this slot
+                isDragging = true;
+                
+                const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+
+                startX = clientX - imgState[id].x;
+                startY = clientY - imgState[id].y;
+                
+                slot.style.cursor = 'grabbing';
+            }
+
+            // Mouse Move / Touch Move
+            window.addEventListener('mousemove', drag);
+            window.addEventListener('touchmove', drag, {passive: false});
+
+            function drag(e) {
+                if (!isDragging || currentSlotId !== id) return;
+                e.preventDefault();
+
+                const clientX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+                const clientY = e.type.includes('mouse') ? e.clientY : e.touches[0].clientY;
+
+                imgState[id].x = clientX - startX;
+                imgState[id].y = clientY - startY;
+                
+                updateTransform(id);
+            }
+
+            // Mouse Up / Touch End
+            window.addEventListener('mouseup', endDrag);
+            window.addEventListener('touchend', endDrag);
+
+            function endDrag() {
+                isDragging = false;
+                slot.style.cursor = 'pointer';
+            }
+
+            // Zoom with Wheel
+            slot.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                selectSlot(id);
+                const scaleAmount = 0.05;
+                if(e.deltaY < 0) {
+                    imgState[id].scale += scaleAmount;
+                } else {
+                    imgState[id].scale = Math.max(0.1, imgState[id].scale - scaleAmount);
+                }
+                updateTransform(id);
+            }, {passive: false});
+        }
+
+        // --- Export Functions ---
+
+        async function downloadImage(type) {
+            // Hide UI helpers before print
+            document.querySelectorAll('.selected-ring').forEach(el => el.classList.remove('selected-ring'));
+            
+            const element = document.getElementById('project-sheet');
+            
+            // High res capture
+            const canvas = await html2canvas(element, {
+                scale: 2, // 2x scale for better quality
+                useCORS: true,
+                backgroundColor: "#fdfdfd"
+            });
+
+            const link = document.createElement('a');
+            link.download = `paddy-project.${type}`;
+            link.href = canvas.toDataURL(`image/${type}`);
+            link.click();
+        }
+
+        async function downloadPDF() {
+            // Hide UI helpers
+            document.querySelectorAll('.selected-ring').forEach(el => el.classList.remove('selected-ring'));
+            
+            const element = document.getElementById('project-sheet');
+            
+            const canvas = await html2canvas(element, { scale: 2 });
+            const imgData = canvas.toDataURL('image/jpeg');
+
+            const { jsPDF } = window.jspdf;
+            // Create PDF based on aspect ratio of the image
+            // We want 9:16 approx. Standard A4 is 210x297mm (1:1.41)
+            // We will force a custom size to match the pixels perfectly or fit A4
+            
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+
+            const imgProps = pdf.getImageProperties(imgData);
+            const pdfHeight = (imgProps.height * pageWidth) / imgProps.width;
+
+            // Center vertically if it fits, otherwise scale
+            pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pdfHeight);
+            pdf.save('paddy-project.pdf');
+        }
+
+    </script>
+</body>
+</html>
