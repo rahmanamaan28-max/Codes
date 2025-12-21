@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Exact Model Replica + Border</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&family=Playfair+Display:wght@700&display=swap');
+
+        :root {
+            /* --- THE MASTER VARIABLES --- */
+            --master-spacing: 16px; /* Space between EVERYTHING */
+            --column-count: 2;
+            --aspect-ratio: 1.25;
+            
+            /* New Border Variables */
+            --border-thickness: 0px;
+            --border-color-custom: #333333;
+            
+            --bg-color: #ffffff;
+            --font-main: 'Roboto', sans-serif;
+        }
+
+        body {
+            background-color: #1a1a1a;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden; /* App-like feel */
+            display: flex;
+            flex-direction: column;
+            font-family: var(--font-main);
+            touch-action: none;
+        }
+
+        /* --- EDITOR WORKSPACE --- */
+        #workspace {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 40px 20px 100px 20px; /* Extra padding bottom for scrolling */
+            /* bg pattern for contrast */
+            background-image: radial-gradient(#333 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* --- THE PAGE MODEL --- */
+        #page-model {
+            width: 100%;
+            max-width: 600px;
+            background-color: var(--bg-color);
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+            
+            /* THE GEOMETRY RULE: Padding equals Gap */
+            padding: var(--master-spacing);
+            
+            /* THE NEW CUSTOMIZABLE BORDER */
+            border: var(--border-thickness) solid var(--border-color-custom);
+            
+            display: grid;
+            grid-template-columns: repeat(var(--column-count), 1fr);
+            gap: var(--master-spacing);
+            
+            /* Hardware acceleration & smooth border transition */
+            transform-style: preserve-3d;
+            backface-visibility: hidden;
+            transition: border-width 0.1s ease-out;
+        }
+
+        /* --- THE CARD UNIT --- */
+        .model-card {
+            display: flex;
+            flex-direction: column;
+            /* The space between Image and Text is ALSO Master Spacing */
+            gap: var(--master-spacing); 
+        }
+
+        /* --- IMAGE FRAME --- */
+        .image-frame {
+            width: 100%;
+            /* Aspect Ratio Logic */
+            padding-bottom: calc(100% * var(--aspect-ratio)); 
+            position: relative;
+            background-color: #f0f0f0;
+            overflow: hidden;
+            cursor: grab;
+            touch-action: none;
+        }
+        
+        .image-frame.active {
+            outline: 2px solid #3b82f6;
+            z-index: 10;
+        }
+
+        /* The Image Itself */
+        .image-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transform-origin: 0 0;
+            pointer-events: none; /* Logic handled by frame */
+            will-change: transform;
+        }
+
+        /* Upload Placeholder */
+        .upload-trigger {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #999;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+        
+        .image-frame.has-image .upload-trigger {
+            opacity: 0;
+        }
+
+        .hidden-input {
+            display: none;
+        }
+
+        /* --- TEXT EDITING --- */
+        .text-area {
+            outline: none;
+            min-height: 1.2em;
+            border: 1px dashed transparent;
+            cursor: text;
+            font-size: 14px;
+            line-height: 1.4;
+            color: #333;
+            word-wrap: break-word;
+        }
+        
+        .text-area:hover, .footer-editable:hover {
+            border-color: #ddd;
+            background-color: rgba(0,0,0,0.02);
+        }
+        
+        .text-area:focus, .footer-editable:focus {
+            border-color: #3b82f6;
+            background-color: transparent;
+        }
+
+        /* --- FOOTER SECTION --- */
+        #model-footer {
+            grid-column: 1 / -1; /* Always span all columns */
+            border-top: 2px solid #eee;
+            padding-top: var(--master-spacing);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .footer-editable {
+            outline: none;
+            border: 1px dashed transparent;
+            width: 100%;
+        }
+
+        /* --- FLOATING CONTROLS --- */
+        #settings-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            max-height: 80vh; /* prevent overflow on small screens */
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid #ccc;
+            padding: 20px;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            z-index: 100;
+        }
+        
+        #settings-panel.open {
+            transform: translateY(0);
+        }
+
+        #text-toolbar {
+            position: fixed;
+            background: #222;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            display: flex;
+            gap: 12px;
+            z-index: 200;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: none; /* Hidden by default */
+            align-items: center;
+        }
+        
+        #text-toolbar::after {
+            content: '';
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            margin-left: -6px;
+            border-width: 6px 6px 0;
+            border-style: solid;
+            border-color: #222 transparent transparent transparent;
+        }
+
+        /* UI Utilities */
+        .slider-group {
+            margin-bottom: 16px;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: 700;
+            color: #555;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+        input[type=range] {
+            width: 100%;
+            height: 4px;
+            background: #ddd;
+            border-radius: 2px;
+            appearance: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px; height: 18px;
+            background: #000;
+            border-radius: 50%;
+        }
+        
+        /* Color Input Styling */
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+        }
+
+
+    </style>
+</head>
+<body>
+
+    <!-- Top Bar -->
+    <div class="h-14 bg-white border-b flex items-center justify-between px-4 z-10 shrink-0">
+        <h1 class="font-bold text-lg">Model Layout</h1>
+        <div class="flex gap-4">
+            <button onclick="document.getElementById('settings-panel').classList.toggle('open')" class="text-gray-600 hover:text-black">
+                <i class="fas fa-sliders-h text-xl"></i>
+            </button>
+            <button onclick="window.print()" class="text-blue-600 hover:text-blue-800 font-semibold">
+                Export
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Canvas Area -->
+    <div id="workspace" onclick="handleWorkspaceClick(event)">
+        
+        <div id="page-model">
+            <!-- Items are generated here via JS -->
+            
+            <!-- FOOTER SECTION: TITLE ONLY -->
+            <div id="model-footer">
+                <div class="footer-editable text-3xl font-playfair font-bold text-center" 
+                     contenteditable="true" 
+                     spellcheck="false"
+                     onfocus="setupToolbar(this)">
+                    Collage Title
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Text Formatting Toolbar (Pops up on click) -->
+    <div id="text-toolbar">
+        <input type="color" id="txt-color" class="w-6 h-6 rounded overflow-hidden p-0 border-0" oninput="exec('foreColor', this.value)">
+        <div class="w-px h-4 bg-gray-600"></div>
+        <button onclick="exec('bold')"><i class="fas fa-bold"></i></button>
+        <button onclick="exec('italic')"><i class="fas fa-italic"></i></button>
+        <button onclick="exec('justifyLeft')"><i class="fas fa-align-left"></i></button>
+        <button onclick="exec('justifyCenter')"><i class="fas fa-align-center"></i></button>
+        <div class="w-px h-4 bg-gray-600"></div>
+        <button onclick="changeSize(-1)"><i class="fas fa-minus text-xs"></i></button>
+        <span class="text-xs font-mono" id="font-size-display">14</span>
+        <button onclick="changeSize(1)"><i class="fas fa-plus text-xs"></i></button>
+    </div>
+
+    <!-- Settings Panel (Slide up) -->
+    <div id="settings-panel">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="font-bold">Layout Settings</h2>
+            <button onclick="document.getElementById('settings-panel').classList.remove('open')" class="p-2">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            <!-- Left Column: Geometry & Structure -->
+            <div>
+                <h3 class="font-bold text-sm mb-4 text-gray-400 uppercase">Geometry</h3>
+                <div class="slider-group">
+                    <label class="slider-label">Master Spacing (Equality Rule) <span><span id="spacing-val">16</span>px</span></label>
+                    <input type="range" min="0" max="60" value="16" oninput="updateCSS('--master-spacing', this.value + 'px'); document.getElementById('spacing-val').innerText = this.value">
+                </div>
+                
+                <div class="slider-group">
+                    <label class="slider-label">Image Ratio (Height) <span><span id="ratio-val">1.25</span>x</span></label>
+                    <input type="range" min="0.5" max="2.0" step="0.05" value="1.25" oninput="updateCSS('--aspect-ratio', this.value); document.getElementById('ratio-val').innerText = this.value">
+                </div>
+
+                 <div class="slider-group">
+                    <label class="slider-label">Columns <span><span id="col-val">2</span></span></label>
+                    <input type="range" min="1" max="4" step="1" value="2" oninput="updateCSS('--column-count', this.value); document.getElementById('col-val').innerText = this.value">
+                </div>
+
+                <div class="slider-group">
+                    <label class="slider-label">Total Photos</label>
+                    <div class="flex gap-2">
+                        <button onclick="updateItemCount(-1)" class="flex-1 bg-gray-200 py-2 rounded">-</button>
+                        <button onclick="updateItemCount(1)" class="flex-1 bg-black text-white py-2 rounded">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Border & Style -->
+            <div>
+                 <h3 class="font-bold text-sm mb-4 text-gray-400 uppercase">Outer Border</h3>
+                 
+                 <div class="slider-group">
+                    <label class="slider-label">Border Thickness <span><span id="border-val">0</span>px</span></label>
+                    <input type="range" min="0" max="30" value="0" oninput="updateCSS('--border-thickness', this.value + 'px'); document.getElementById('border-val').innerText = this.value">
+                </div>
+
+                 <div class="slider-group">
+                    <label class="slider-label">Border Color</label>
+                    <div class="h-10 rounded-md overflow-hidden border border-gray-300 relative">
+                         <input type="color" value="#333333" class="absolute inset-0 w-full h-full p-0 border-0 cursor-pointer" oninput="updateCSS('--border-color-custom', this.value)">
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+<script>
+    /* --- STATE --- */
+    let itemCount = 4;
+    const transforms = new Map(); // Store physics state: {x, y, scale}
+    let activeText = null;
+
+    /* --- INITIALIZATION --- */
+    function init() {
+        renderItems();
+    }
+
+    function updateCSS(varName, value) {
+        document.documentElement.style.setProperty(varName, value);
+    }
+
+    /* --- ITEM GENERATION --- */
+    function renderItems() {
+        const container = document.getElementById('page-model');
+        const footer = document.getElementById('model-footer');
+        
+        // Count only card elements (exclude footer)
+        const currentCards = container.querySelectorAll('.model-card');
+        const currentCount = currentCards.length;
+        const diff = itemCount - currentCount;
+
+        if (diff > 0) {
+            for(let i=0; i<diff; i++) {
+                // Insert BEFORE the footer
+                container.insertBefore(createCard(currentCount + i), footer);
+            }
+        } else if (diff < 0) {
+            for(let i=0; i<Math.abs(diff); i++) {
+                // Remove the last CARD (not the footer)
+                const cards = container.querySelectorAll('.model-card');
+                if(cards.length > 0) {
+                    container.removeChild(cards[cards.length - 1]);
+                }
+            }
+        }
+    }
+
+    function createCard(id) {
+        const card = document.createElement('div');
+        card.className = 'model-card';
+        card.innerHTML = `
+            <div class="image-frame" id="frame-${id}" onclick="triggerUpload(${id})">
+                <div class="upload-trigger">
+                    <i class="fas fa-plus text-2xl mb-1"></i>
+                    <span class="text-xs uppercase font-bold tracking-wider">Add Photo</span>
+                </div>
+                <img src="" class="image-layer" id="img-${id}" style="opacity:0">
+                <input type="file" id="input-${id}" class="hidden-input" accept="image/*" onchange="handleFile(this, ${id})">
+            </div>
+            <div class="text-area" contenteditable="true" spellcheck="false" 
+                 onfocus="setupToolbar(this)">
+                Label ${id + 1}
+            </div>
+        `;
+        
+        // Initialize Physics for this card
+        const frame = card.querySelector('.image-frame');
+        const img = card.querySelector('.image-layer');
+        initPhysics(frame, img, id);
+        
+        return card;
+    }
+
+    function updateItemCount(delta) {
+        if(itemCount + delta < 1) return;
+        itemCount += delta;
+        renderItems();
+    }
+
+    /* --- IMAGE HANDLING --- */
+    function triggerUpload(id) {
+        // Only trigger if not dragging
+        const frame = document.getElementById(`frame-${id}`);
+        if (!frame.classList.contains('is-manipulating')) {
+            document.getElementById(`input-${id}`).click();
+        }
+    }
+
+    function handleFile(input, id) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = document.getElementById(`img-${id}`);
+                const frame = document.getElementById(`frame-${id}`);
+                img.src = e.target.result;
+                img.style.opacity = '1';
+                frame.classList.add('has-image');
+                
+                // Reset Physics
+                transforms.set(id, {x:0, y:0, scale:1});
+                applyTransform(id);
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    /* --- PHYSICS ENGINE (Zoom/Pan) --- */
+    function initPhysics(frame, img, id) {
+        transforms.set(id, {x:0, y:0, scale:1});
+        
+        let evCache = [];
+        let prevDiff = -1;
+        let isDragging = false;
+        let startX = 0, startY = 0;
+
+        frame.onpointerdown = (ev) => {
+            if(!frame.classList.contains('has-image')) return;
+            
+            ev.preventDefault();
+            evCache.push(ev);
+            
+            if(evCache.length === 1) {
+                startX = ev.clientX;
+                startY = ev.clientY;
+            }
+        };
+
+        frame.onpointermove = (ev) => {
+            if(evCache.length === 0) return;
+            
+            const idx = evCache.findIndex(e => e.pointerId === ev.pointerId);
+            if(idx > -1) evCache[idx] = ev;
+            else return;
+
+            // Detect drag threshold to prevent accidental clicks
+            if(!isDragging && evCache.length === 1) {
+                const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
+                if(dist > 5) {
+                    isDragging = true;
+                    frame.classList.add('is-manipulating');
+                }
+            }
+
+            const t = transforms.get(id);
+
+            // 1 Finger Pan
+            if(isDragging && evCache.length === 1) {
+                t.x += ev.movementX;
+                t.y += ev.movementY;
+                applyTransform(id);
+            }
+
+            // 2 Finger Pinch
+            if(evCache.length === 2) {
+                isDragging = true;
+                frame.classList.add('is-manipulating');
+                
+                const curDiff = Math.hypot(
+                    evCache[0].clientX - evCache[1].clientX,
+                    evCache[0].clientY - evCache[1].clientY
+                );
+
+                if(prevDiff > 0) {
+                    const delta = curDiff - prevDiff;
+                    // Zoom sensitivity
+                    t.scale = Math.max(0.5, Math.min(5, t.scale + delta * 0.005));
+                    applyTransform(id);
+                }
+                prevDiff = curDiff;
+            }
+        };
+
+        const upHandler = (ev) => {
+            const idx = evCache.findIndex(e => e.pointerId === ev.pointerId);
+            if(idx > -1) evCache.splice(idx, 1);
+            if(evCache.length < 2) prevDiff = -1;
+            
+            if(evCache.length === 0) {
+                setTimeout(() => {
+                    isDragging = false;
+                    frame.classList.remove('is-manipulating');
+                }, 50); // slight delay to allow click event to fail if needed
+            }
+        };
+
+        frame.onpointerup = upHandler;
+        frame.onpointercancel = upHandler;
+        frame.onpointerout = upHandler;
+        frame.onpointerleave = upHandler;
+    }
+
+    function applyTransform(id) {
+        const t = transforms.get(id);
+        const img = document.getElementById(`img-${id}`);
+        if(img) img.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale})`;
+    }
+
+    /* --- TEXT TOOLS --- */
+    function setupToolbar(el) {
+        activeText = el;
+        const toolbar = document.getElementById('text-toolbar');
+        const rect = el.getBoundingClientRect();
+        
+        toolbar.style.display = 'flex';
+        // Position above text
+        const top = rect.top - 50;
+        const left = rect.left + (rect.width/2) - (toolbar.offsetWidth/2);
+        
+        toolbar.style.top = top + 'px';
+ toolbar.style.left = Math.max(10, left) + 'px'; // Prevent off-screen
+        
+        // Update font size display
+        const size = window.getComputedStyle(el).fontSize;
+        document.getElementById('font-size-display').innerText = parseInt(size);
+    }
+
+    function handleWorkspaceClick(e) {
+        // If clicking on empty workspace, hide text toolbar
+        if(e.target.id === 'workspace' || e.target.id === 'page-model') {
+            document.getElementById('text-toolbar').style.display = 'none';
+        }
+    }
+
+    function exec(cmd, val=null) {
+        document.execCommand(cmd, false, val);
+        if(activeText) activeText.focus();
+    }
+    
+    function changeSize(delta) {
+        if(!activeText) return;
+        const style = window.getComputedStyle(activeText);
+        let current = parseInt(style.fontSize);
+        let newVal = current + delta;
+        activeText.style.fontSize = newVal + 'px';
+        document.getElementById('font-size-display').innerText = newVal;
+    }
+
+    // Start
+    init();
+
+</script>
+</body>
+</html>
