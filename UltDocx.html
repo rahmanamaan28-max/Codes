@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile A4 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:wght@300;400;700&display=swap');
+
+        /* --- Base & Reset --- */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1f2937; /* Dark gray for focus */
+            overscroll-behavior: none; /* Prevent pull-to-refresh */
+            touch-action: pan-x pan-y;
+        }
+
+        /* --- The A4 Page --- */
+        .page-container {
+            /* This container handles the scaling transform */
+            transform-origin: top left;
+            transition: transform 0.1s ease-out;
+            padding: 20px; /* Bleed area */
+            display: inline-block; /* Allow container to grow */
+        }
+
+        .a4-page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm;
+            background: white;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            font-family: 'Merriweather', serif;
+            color: #000;
+            line-height: 1.2;
+            overflow-wrap: break-word;
+            outline: none;
+            /* STRICT 3pt DEFAULT */
+            font-size: 3pt; 
+            column-gap: 10mm;
+            column-rule: 1px solid #e5e7eb;
+        }
+
+        /* --- Content Styling --- */
+        .a4-page table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+            font-size: inherit;
+        }
+        .a4-page td, .a4-page th {
+            border: 0.5px solid #000;
+            padding: 2px 4px;
+        }
+        .a4-page th { background-color: #f3f4f6; }
+        .a4-page img { max-width: 100%; height: auto; display: block; }
+        .a4-page ul { list-style: disc inside; margin-left: 5px; }
+        .a4-page ol { list-style: decimal inside; margin-left: 5px; }
+
+        /* --- UI Components --- */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Floating Zoom Badge */
+        #zoom-badge {
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 50;
+        }
+        #zoom-badge.visible { opacity: 1; }
+
+        /* Toast */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            width: 90%;
+            max-width: 300px;
+            pointer-events: none;
+        }
+        .toast {
+            background: #3b82f6;
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            font-size: 13px;
+            text-align: center;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+
+        /* Print Mode */
+        @media print {
+            body { background: white; height: auto; overflow: visible; }
+            header, #toast-container, #zoom-badge { display: none !important; }
+            #editor-viewport { overflow: visible !important; height: auto !important; }
+            .page-container { transform: none !important; padding: 0 !important; display: block; }
+            .a4-page { width: 100%; margin: 0; box-shadow: none; min-height: auto; }
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-gray-800">
+
+    <!-- --- HEADER / TOOLBAR --- -->
+    <header class="bg-white border-b border-gray-200 z-20 flex-none shadow-sm">
+        <!-- Top Row: Branding & Main Actions -->
+        <div class="flex justify-between items-center px-4 py-2 border-b border-gray-100">
+            <div class="flex items-center gap-2">
+                <div class="bg-indigo-600 text-white p-1 rounded">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                </div>
+                <h1 class="font-bold text-sm tracking-wide">A4<span class="text-indigo-600">Pro</span></h1>
+                <span id="save-status" class="text-[10px] text-gray-400 ml-2 uppercase font-semibold">Saved</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="triggerImageUpload()" class="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Insert Image">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                </button>
+                <button onclick="safePrint()" class="bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">Print</button>
+            </div>
+        </div>
+
+        <!-- Bottom Row: Scrollable Formatting Tools -->
+        <div class="bg-gray-50 py-2">
+            <div class="flex items-center gap-2 overflow-x-auto hide-scrollbar px-3">
+                
+                <!-- Font Size -->
+                <div class="flex items-center bg-white border border-gray-300 rounded h-8 px-1 flex-shrink-0">
+                    <span class="text-[10px] font-bold text-gray-400 mr-1">PT</span>
+                    <input type="number" id="fontSizeInput" value="3" min="1" max="100" class="w-8 text-center text-sm outline-none font-bold text-gray-700" onchange="applyPointSize(this.value)">
+                </div>
+
+                <!-- Undo/Redo -->
+                <div class="flex gap-0.5 flex-shrink-0 border-l border-gray-200 pl-2">
+                    <button onclick="safeFormat('undo')" class="h-8 w-8 flex items-center justify-center bg-white border border-gray-300 rounded-l hover:bg-gray-100"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg></button>
+                    <button onclick="safeFormat('redo')" class="h-8 w-8 flex items-center justify-center bg-white border border-gray-300 rounded-r hover:bg-gray-100"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/></svg></button>
+                </div>
+
+                <!-- B/I/U -->
+                <div class="flex gap-0.5 flex-shrink-0">
+                    <button onclick="safeFormat('bold')" class="h-8 w-8 font-bold bg-white border border-gray-300 rounded hover:bg-gray-100">B</button>
+                    <button onclick="safeFormat('italic')" class="h-8 w-8 italic bg-white border border-gray-300 rounded hover:bg-gray-100 font-serif">I</button>
+                    <button onclick="safeFormat('underline')" class="h-8 w-8 underline bg-white border border-gray-300 rounded hover:bg-gray-100">U</button>
+                </div>
+
+                <!-- Alignment -->
+                <div class="flex gap-0.5 flex-shrink-0 border-l border-gray-200 pl-2">
+                    <button onclick="safeFormat('justifyLeft')" class="h-8 w-8 flex items-center justify-center bg-white border border-gray-300 rounded hover:bg-gray-100"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h10M4 18h16"/></svg></button>
+                    <button onclick="safeFormat('justifyCenter')" class="h-8 w-8 flex items-center justify-center bg-white border border-gray-300 rounded hover:bg-gray-100"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M7 12h10M4 18h16"/></svg></button>
+                    <button onclick="safeFormat('justifyRight')" class="h-8 w-8 flex items-center justify-center bg-white border border-gray-300 rounded hover:bg-gray-100"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M10 12h10M4 18h16"/></svg></button>
+                </div>
+
+                <!-- Inserts -->
+                <div class="flex items-center gap-2 flex-shrink-0 border-l border-gray-200 pl-2">
+                    <button onclick="openTableModal()" class="h-8 px-3 bg-white border border-gray-300 rounded hover:bg-gray-100 text-xs font-bold">Table</button>
+                    <div class="flex items-center bg-white border border-gray-300 rounded h-8 px-1">
+                        <span class="text-[10px] font-bold text-gray-400 mr-1">COL</span>
+                        <input type="number" id="colInput" value="1" min="1" max="10" class="w-6 text-center text-sm outline-none font-bold" onchange="safeSetColumns(this.value)">
+                    </div>
+                </div>
+
+                <div class="w-4 flex-shrink-0"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- --- VIEWPORT --- -->
+    <main class="flex-1 overflow-auto bg-gray-900 relative cursor-grab active:cursor-grabbing" id="editor-viewport">
+        
+        <div class="page-container" id="page-container">
+            <div 
+                id="editor" 
+                contenteditable="true" 
+                class="a4-page"
+                spellcheck="false"
+            >
+                <h1 style="font-size: 14pt; text-align: center;">Document Title</h1>
+                <p style="text-align: center; color: #666; font-size: 8pt;">Subtitle</p>
+                <hr>
+                <p>Start typing. This text is 3pt default.</p>
+                <p>Pinch to zoom, drag to pan.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- --- HIDDEN INPUTS & MODALS --- -->
+    <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
+
+    <div id="zoom-badge">100%</div>
+    <div id="toast-container"></div>
+
+    <dialog id="tableDialog" class="rounded-xl shadow-2xl border-0 p-0 w-80 max-w-[90%] backdrop:bg-black/50 m-auto">
+        <div class="bg-white p-5">
+            <h3 class="font-bold text-lg text-gray-800 mb-4">Insert Table</h3>
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Rows</label>
+                        <input type="number" id="tableRows" value="3" class="w-full border border-gray-300 rounded p-2 text-center">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Columns</label>
+                        <input type="number" id="tableCols" value="3" class="w-full border border-gray-300 rounded p-2 text-center">
+                    </div>
+                </div>
+            </div>
+            <div class="mt-6 flex gap-3">
+                <button onclick="document.getElementById('tableDialog').close()" class="flex-1 py-2 bg-gray-100 rounded text-sm font-medium">Cancel</button>
+                <button onclick="safeInsertTable()" class="flex-1 py-2 bg-indigo-600 text-white rounded text-sm font-medium">Insert</button>
+            </div>
+        </div>
+    </dialog>
+
+    <script>
+        /* --- STATE --- */
+        const state = {
+            scale: 1,
+            lastScale: 1,
+            panning: false,
+            pointX: 0,
+            pointY: 0,
+            startX: 0,
+            startY: 0,
+            initialDist: 0
+        };
+
+        const editor = document.getElementById('editor');
+        const viewport = document.getElementById('editor-viewport');
+        const container = document.getElementById('page-container');
+        const zoomBadge = document.getElementById('zoom-badge');
+        const saveStatus = document.getElementById('save-status');
+
+        /* --- PERSISTENCE (AUTO-SAVE) --- */
+        function saveDoc() {
+            localStorage.setItem('a4_pro_content', editor.innerHTML);
+            saveStatus.textContent = 'SAVED';
+            saveStatus.classList.add('text-green-500');
+            saveStatus.classList.remove('text-gray-400');
+            setTimeout(() => {
+                saveStatus.textContent = 'Saved';
+                saveStatus.classList.remove('text-green-500');
+                saveStatus.classList.add('text-gray-400');
+            }, 1000);
+        }
+
+        function loadDoc() {
+            const saved = localStorage.getItem('a4_pro_content');
+            if (saved) {
+                editor.innerHTML = saved;
+            }
+        }
+
+        editor.addEventListener('input', () => {
+            // Debounce save slightly
+            clearTimeout(window.saveTimeout);
+            window.saveTimeout = setTimeout(saveDoc, 1000);
+            saveStatus.textContent = 'Typing...';
+        });
+
+        /* --- FORMATTING --- */
+        function safeFormat(cmd, val = null) {
+            document.execCommand(cmd, false, val);
+            editor.focus();
+        }
+
+        function applyPointSize(ptValue) {
+            const selection = window.getSelection();
+            if (!selection.rangeCount) return showToast('Tap text first', true);
+            
+            const size = parseInt(ptValue);
+            const markerId = "SIZE-" + Date.now();
+            document.execCommand('createLink', false, markerId);
+            const links = editor.querySelectorAll(`a[href="${markerId}"]`);
+            links.forEach(link => {
+                const span = document.createElement('span');
+                span.style.fontSize = `${size}pt`;
+                span.innerHTML = link.innerHTML;
+                link.parentNode.replaceChild(span, link);
+            });
+            showToast(`Size: ${size}pt`);
+        }
+
+        /* --- IMAGE SUPPORT --- */
+        function triggerImageUpload() {
+            document.getElementById('imageInput').click();
+        }
+
+        function handleImageUpload(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imgHtml = `<img src="${e.target.result}" style="max-width:100%; margin: 10px 0;">`;
+                    editor.focus();
+                    document.execCommand('insertHTML', false, imgHtml);
+                    saveDoc();
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+            input.value = ''; // Reset
+        }
+
+        /* --- TABLE & COLUMNS --- */
+        function openTableModal() { document.getElementById('tableDialog').showModal(); }
+        function safeInsertTable() {
+            const r = document.getElementById('tableRows').value;
+            const c = document.getElementById('tableCols').value;
+            let h = '<table style="width:100%"><tbody>';
+            for(let i=0; i<r; i++) {
+                h += '<tr>';
+                for(let j=0; j<c; j++) h += '<td><br></td>';
+                h += '</tr>';
+            }
+            h += '</tbody></table><p><br></p>';
+            editor.focus();
+            document.execCommand('insertHTML', false, h);
+            document.getElementById('tableDialog').close();
+        }
+
+        function safeSetColumns(n) {
+            editor.style.columnCount = n;
+        }
+
+        /* --- GESTURES (PINCH & PAN) --- */
+        
+        // Helper to get distance between 2 touches
+        function getDistance(touches) {
+            return Math.hypot(
+                touches[0].pageX - touches[1].pageX,
+                touches[0].pageY - touches[1].pageY
+            );
+        }
+
+        // 1. Touch Start
+        viewport.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                // Pinch Start
+                state.initialDist = getDistance(e.touches);
+                state.lastScale = state.scale;
+                e.preventDefault(); // Stop native zoom
+            } 
+        }, { passive: false });
+
+        // 2. Touch Move
+        viewport.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                // Pinch Move
+                const dist = getDistance(e.touches);
+                const delta = dist / state.initialDist;
+                
+                // Limit zoom 0.5x to 5.0x
+                let newScale = state.lastScale * delta;
+                newScale = Math.min(Math.max(0.5, newScale), 5.0);
+                
+                state.scale = newScale;
+                updateTransform();
+                
+                // Show badge
+                zoomBadge.textContent = Math.round(state.scale * 100) + '%';
+                zoomBadge.classList.add('visible');
+                
+                e.preventDefault();
+            }
+            // 1 finger = native scroll handled by overflow:auto on viewport
+        }, { passive: false });
+
+        // 3. Touch End
+        viewport.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                zoomBadge.classList.remove('visible');
+            }
+        });
+
+        function updateTransform() {
+            // We apply scale to the container content, but NOT translate.
+            // Translation is handled by native scrolling of the viewport div.
+            // We just ensure the container size grows so scrollbars appear.
+            container.style.transform = `scale(${state.scale})`;
+        }
+
+        /* --- INIT --- */
+        function init() {
+            loadDoc();
+            document.execCommand('defaultParagraphSeparator', false, 'p');
+            
+            // Auto-Fit Logic
+            const screenW = window.innerWidth;
+            const docW = 794; // approx A4 px width
+            if (screenW < docW) {
+                // Initial zoom to fit width
+                state.scale = (screenW - 20) / docW;
+                // Clamp min for readability on tiny screens
+                state.scale = Math.max(state.scale, 0.4); 
+                updateTransform();
+            }
+        }
+
+        /* --- UTILS --- */
+        function safePrint() { window.print(); }
+        function showToast(msg, err=false) {
+            const t = document.createElement('div');
+            t.className = 'toast';
+            t.style.background = err ? '#ef4444' : '#3b82f6';
+            t.textContent = msg;
+            document.getElementById('toast-container').appendChild(t);
+            requestAnimationFrame(() => t.classList.add('show'));
+            setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2000);
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
+
