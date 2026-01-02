@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Happy New Year 2026</title>
+    <style>
+        /* --- RESET & WORLD --- */
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+            background-color: #111;
+            /* Dark Wood Texture */
+            background-image: 
+                linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)),
+                url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 20h20v20H20V20zM0 0h20v20H0V0z' fill='%23222' fill-opacity='0.4' fill-rule='evenodd'/%3E%3C/svg%3E");
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+            perspective: 1200px;
+            touch-action: none;
+        }
+
+        /* --- THE CARD CONTAINER --- */
+        .scene {
+            position: relative;
+            width: 85vw;
+            max-width: 350px;
+            aspect-ratio: 0.72; /* Standard Greeting Card Ratio */
+            z-index: 10;
+        }
+
+        /* --- CARD PANELS --- */
+        /* 1. Base (Inside Right) */
+        .card-base {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #fffdf9;
+            border-radius: 6px 10px 10px 6px;
+            box-shadow: 10px 15px 35px rgba(0,0,0,0.6);
+            z-index: 1;
+        }
+
+        /* 2. Flap (Front + Inside Left) */
+        .card-flap {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            transform-origin: left center;
+            transform-style: preserve-3d;
+            z-index: 2;
+            transition: transform 0.1s linear; /* Fast response for drag */
+            /* Add subtle shadow to the flap itself */
+            filter: drop-shadow(2px 0 5px rgba(0,0,0,0.3));
+        }
+
+        .card-flap.snapping {
+            transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        /* --- PAGE STYLING (FACES) --- */
+        .face {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            backface-visibility: hidden;
+            border-radius: 6px 10px 10px 6px;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        /* --- FRONT COVER (ENHANCED) --- */
+        .face-front {
+            /* Deep Night Sky Gradient */
+            background: radial-gradient(circle at 50% 120%, #1a0b2e 0%, #000000 60%, #000000 100%);
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            
+            /* Premium Double Border */
+            border: 12px solid #111;
+            outline: 2px solid #ffd700;
+            outline-offset: -8px;
+        }
+
+        /* Realistic Stars Overlay */
+        .face-front::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                radial-gradient(1px 1px at 10% 10%, white 100%, transparent),
+                radial-gradient(1px 1px at 20% 80%, white 100%, transparent),
+                radial-gradient(2px 2px at 40% 40%, rgba(255,255,255,0.8) 100%, transparent),
+                radial-gradient(1px 1px at 60% 20%, white 100%, transparent),
+                radial-gradient(2px 2px at 80% 80%, rgba(255,255,255,0.8) 100%, transparent),
+                radial-gradient(1px 1px at 90% 10%, white 100%, transparent);
+            background-size: 200px 200px;
+            opacity: 0.7;
+        }
+
+        /* Fireworks Canvas */
+        #fireworks-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+        }
+
+        .front-content {
+            z-index: 10;
+            text-align: center;
+            pointer-events: none;
+            /* Glassmorphism backing for text legibility */
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(2px);
+            border: 1px solid rgba(255,215,0,0.3);
+            box-shadow: 0 0 20px rgba(255,215,0,0.1);
+        }
+
+        .front-title {
+            font-family: 'Playfair Display', serif;
+            color: #fff;
+            font-size: 3rem;
+            line-height: 1.1;
+            margin: 0;
+            /* Gold Gradient Text */
+            background: linear-gradient(to bottom, #fff 0%, #ffd700 50%, #d4af37 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+        }
+
+        .drag-arrow {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 24px;
+            color: rgba(255,255,255,0.8);
+            animation: pulseLeft 1.5s infinite;
+            z-index: 20;
+            text-shadow: 0 0 10px #000;
+        }
+        @keyframes pulseLeft {
+            0% { transform: translateY(-50%) translateX(0); opacity: 0.5; }
+            50% { transform: translateY(-50%) translateX(-8px); opacity: 1; }
+            100% { transform: translateY(-50%) translateX(0); opacity: 0.5; }
+        }
+
+        /* --- INSIDE LEFT --- */
+        .face-back {
+            transform: rotateY(180deg);
+            background: #fffdf9;
+            /* Inner Border */
+            border: 10px solid #fff;
+            outline: 1px solid #d4af37;
+            outline-offset: -5px;
+            
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            box-shadow: inset -10px 0 20px rgba(0,0,0,0.05);
+        }
+        
+        .msg-left {
+            font-family: 'Georgia', serif;
+            font-style: italic;
+            font-size: 1.15rem;
+            text-align: center;
+            color: #444;
+            line-height: 1.8;
+            border-top: 1px solid #d4af37;
+            border-bottom: 1px solid #d4af37;
+            padding: 20px 0;
+        }
+
+        /* --- INSIDE RIGHT (Base Content) --- */
+        .content-right {
+            width: 100%; height: 100%;
+            /* Border matching left side */
+            border: 10px solid #fff;
+            outline: 1px solid #d4af37;
+            outline-offset: -5px;
+            
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            box-shadow: inset 10px 0 20px rgba(0,0,0,0.05);
+        }
+
+        .top-section {
+            flex: 1.2;
+            display: flex;
+            align-items: flex-end; /* Align popup to bottom of this section */
+            justify-content: center;
+            perspective: 800px;
+            overflow: visible;
+        }
+
+        .bottom-section {
+            flex: 0.8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 20px;
+            background: radial-gradient(circle at center, rgba(255,215,0,0.1), transparent 70%);
+        }
+
+        /* Popup Logic */
+        .popup-anchor {
+            transform-style: preserve-3d;
+            transform-origin: bottom center;
+            transform: rotateX(90deg); /* Hidden initially */
+            transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+            margin-bottom: 10px;
+        }
+
+        .card-open .popup-anchor {
+            transform: rotateX(0deg);
+        }
+
+        .pop-year {
+            font-family: 'Arial Black', sans-serif;
+            font-size: 4.8rem;
+            line-height: 1;
+            background: -webkit-linear-gradient(#ffcc00, #ff6600);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            /* Heavy 3D Shadow */
+            filter: drop-shadow(0 5px 0 #cc5500) drop-shadow(0 10px 5px rgba(0,0,0,0.2));
+        }
+
+        .wishes {
+            text-align: center;
+            color: #333;
+            font-size: 0.95rem;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .signature {
+            font-family: 'Brush Script MT', cursive;
+            font-size: 2rem;
+            color: #002244;
+            transform: rotate(-4deg);
+            margin-top: 5px;
+        }
+        
+        .from-lbl {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: #999;
+            letter-spacing: 1.5px;
+            text-align: center;
+        }
+
+        /* --- GLOBAL CONFETTI --- */
+        #confetti-layer {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* Hint Text */
+        .hint-text {
+            position: absolute;
+            bottom: 30px;
+            color: rgba(255,255,255,0.5);
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+            pointer-events: none;
+            transition: opacity 0.5s;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <canvas id="confetti-layer"></canvas>
+
+    <div class="scene">
+        <!-- Inside Right (Base) -->
+        <div class="card-base">
+            <div class="content-right">
+                <div class="top-section">
+                    <div class="popup-anchor" id="popup">
+                        <div class="pop-year">2026</div>
+                    </div>
+                </div>
+                <div class="bottom-section">
+                    <p class="wishes">
+                        May the coming year bring you success, happiness, and prosperity.
+                    </p>
+                    <div>
+                        <div class="from-lbl">From</div>
+                        <div class="signature">Amaan Rahman</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Flap (Front & Inside Left) -->
+        <div class="card-flap" id="cardFlap">
+            <!-- Front Cover -->
+            <div class="face face-front">
+                <canvas id="fireworks-canvas"></canvas>
+                <div class="front-content">
+                    <div style="font-size: 1rem; color: #ffd700; letter-spacing: 2px; margin-bottom: 5px;">WISHING YOU A</div>
+                    <h1 class="front-title">Happy<br>New Year</h1>
+                </div>
+                <div class="drag-arrow">❮</div>
+            </div>
+
+            <!-- Inside Left -->
+            <div class="face face-back">
+                <p class="msg-left">
+                    "Every moment is a fresh beginning. Here’s to a brilliant 2026 full of new adventures!"
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="hint-text" id="instruct">Drag card left to open</div>
+
+    <script>
+        // --- SELECTORS ---
+        const flap = document.getElementById('cardFlap');
+        const scene = document.querySelector('.scene');
+        const instruction = document.getElementById('instruct');
+        
+        // --- STATE ---
+        let startX = 0;
+        let currentRotation = 0;
+        let isDragging = false;
+        let isOpen = false;
+        let hasPlayedAudio = false;
+
+        // --- FIREWORKS ENGINE (Enhanced) ---
+        const fwCanvas = document.getElementById('fireworks-canvas');
+        const fwCtx = fwCanvas.getContext('2d');
+        let fwParticles = [];
+
+        function resizeFw() {
+            // Match canvas to the flap size precisely
+            const rect = flap.getBoundingClientRect();
+            // Scale for high DPI
+            const dpr = window.devicePixelRatio || 1;
+            fwCanvas.width = rect.width * dpr;
+            fwCanvas.height = rect.height * dpr;
+            fwCtx.scale(dpr, dpr);
+            // CSS size
+            fwCanvas.style.width = rect.width + 'px';
+            fwCanvas.style.height = rect.height + 'px';
+        }
+        window.addEventListener('resize', resizeFw);
+        setTimeout(resizeFw, 50); // Initial set
+
+        function createFirework() {
+            // Only render fireworks if card is closed (visible)
+            if(isOpen) return;
+
+            const w = fwCanvas.clientWidth;
+            const h = fwCanvas.clientHeight;
+            const x = Math.random() * w;
+            const y = Math.random() * (h * 0.6) + (h * 0.1); // Keep in upper 70%
+            
+            // Vibrant colors
+            const colors = ['#ff0055', '#00ffaa', '#ffcc00', '#00ccff', '#ff66ff', '#ffffff'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            
+            // Explosion
+            for(let i=0; i<40; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 3 + 1;
+                fwParticles.push({
+                    x: x, y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1.0,
+                    decay: Math.random() * 0.02 + 0.015,
+                    color: color,
+                    size: Math.random() * 2 + 1
+                });
+            }
+        }
+
+        function updateFireworks() {
+            // Trail effect (fade out previous frame)
+            fwCtx.globalCompositeOperation = 'destination-out';
+            fwCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            fwCtx.fillRect(0, 0, fwCanvas.width, fwCanvas.height);
+            
+            fwCtx.globalCompositeOperation = 'lighter'; // Additive blending for glow
+
+            if(Math.random() < 0.08) createFirework(); // Spawn rate
+
+            for(let i=fwParticles.length-1; i>=0; i--) {
+                const p = fwParticles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.05; // Gravity
+                p.life -= p.decay;
+
+                if(p.life <= 0) {
+                    fwParticles.splice(i, 1);
+                    continue;
+                }
+
+                fwCtx.fillStyle = p.color;
+                fwCtx.globalAlpha = p.life;
+                fwCtx.beginPath();
+                fwCtx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+                fwCtx.fill();
+            }
+            requestAnimationFrame(updateFireworks);
+        }
+        updateFireworks();
+
+        // --- FLIP INTERACTION (Drag) ---
+        // Unified Touch/Mouse Handlers
+        const startEvent = (e) => {
+            if(!e.target.closest('.scene')) return;
+            isDragging = true;
+            flap.classList.remove('snapping');
+            startX = e.touches ? e.touches[0].clientX : e.clientX;
+        };
+
+        const moveEvent = (e) => {
+            if(!isDragging) return;
+            e.preventDefault(); // Lock scroll
+            
+            const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+            const deltaX = currentX - startX;
+            
+            // Logic: 0 is closed, -170 is open
+            // Dragging left (negative delta) opens it
+            let rotation = isOpen ? -170 + (deltaX * 0.6) : (deltaX * 0.6);
+            
+            // Constraints
+            if(rotation > 0) rotation = 0;
+            if(rotation < -175) rotation = -175;
+            
+            currentRotation = rotation;
+            flap.style.transform = `rotateY(${rotation}deg)`;
+            
+            // Dynamic Shadow/State
+            if(rotation < -120) scene.classList.add('card-open');
+            else scene.classList.remove('card-open');
+        };
+
+        const endEvent = () => {
+            if(!isDragging) return;
+            isDragging = false;
+            flap.classList.add('snapping');
+            
+            // Thresholds
+            if(currentRotation < -60) {
+                // Finish Opening
+                flap.style.transform = `rotateY(-175deg)`;
+                scene.classList.add('card-open');
+                isOpen = true;
+                instruction.style.opacity = 0;
+                
+                if(!hasPlayedAudio) {
+                    playCardMusic();
+                    fireConfetti();
+                    hasPlayedAudio = true;
+                }
+            } else {
+                // Snap Close
+                flap.style.transform = `rotateY(0deg)`;
+                scene.classList.remove('card-open');
+                isOpen = false;
+                instruction.style.opacity = 1;
+            }
+        };
+
+        document.addEventListener('touchstart', startEvent, {passive: false});
+        document.addEventListener('touchmove', moveEvent, {passive: false});
+        document.addEventListener('touchend', endEvent);
+        document.addEventListener('mousedown', startEvent);
+        document.addEventListener('mousemove', moveEvent);
+        document.addEventListener('mouseup', endEvent);
+
+
+        // --- AUDIO ENGINE ---
+        function playCardMusic() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                const ctx = new AudioContext();
+                const now = ctx.currentTime;
+                
+                // Magical Chime Melody
+                const notes = [
+                    {f: 523.25, d: 0.2}, // C5
+                    {f: 659.25, d: 0.2}, // E5
+                    {f: 783.99, d: 0.2}, // G5
+                    {f: 1046.50, d: 0.4}, // C6
+                    {f: 523.25, d: 0.4}, // C5
+                    {f: 1318.51, d: 1.0} // E6
+                ];
+                
+                let time = now;
+                notes.forEach(n => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    
+                    osc.type = 'triangle'; // Softer sound
+                    osc.frequency.value = n.f;
+                    
+                    gain.gain.setValueAtTime(0, time);
+                    gain.gain.linearRampToValueAtTime(0.15, time + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.001, time + n.d + 1);
+                    
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    
+                    osc.start(time);
+                    osc.stop(time + n.d + 1.5);
+                    time += 0.15; // Overlap slightly
+                });
+            } catch (e) { console.log('Audio blocked'); }
+        }
+
+        // --- CONFETTI ENGINE ---
+        const cfCanvas = document.getElementById('confetti-layer');
+        const cfCtx = cfCanvas.getContext('2d');
+        let cfParticles = [];
+
+        function fireConfetti() {
+            cfCanvas.width = window.innerWidth;
+            cfCanvas.height = window.innerHeight;
+            
+            const colors = ['#FFD700', '#C0C0C0', '#ffffff', '#FF4400'];
+            
+            for(let i=0; i<100; i++) {
+                cfParticles.push({
+                    x: window.innerWidth/2,
+                    y: window.innerHeight/2,
+                    vx: (Math.random() - 0.5) * 20,
+                    vy: (Math.random() - 1) * 20 - 5,
+                    size: Math.random() * 8 + 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    life: 1.0,
+                    spin: Math.random() * 20 - 10,
+                    rotation: 0
+                });
+            }
+            animateConfetti();
+        }
+
+        function animateConfetti() {
+            cfCtx.clearRect(0,0, cfCanvas.width, cfCanvas.height);
+            let active = false;
+            
+            cfParticles.forEach(p => {
+                if(p.life > 0) {
+                    active = true;
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.4;
+                    p.vx *= 0.96;
+                    p.life -= 0.008;
+                    p.rotation += p.spin;
+                    
+                    cfCtx.save();
+                    cfCtx.translate(p.x, p.y);
+                    cfCtx.rotate(p.rotation * Math.PI/180);
+                    cfCtx.fillStyle = p.color;
+                    cfCtx.globalAlpha = p.life;
+                    cfCtx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                    cfCtx.restore();
+                }
+            });
+
+            if(active) requestAnimationFrame(animateConfetti);
+        }
+
+    </script>
+</body>
+</html>
